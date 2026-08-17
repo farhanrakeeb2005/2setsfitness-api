@@ -23,6 +23,14 @@ app.use('/history',     historyRoutes);
 app.use('/leaderboard', leaderboardRoutes);
 app.use('/ai',          aiRoutes);
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/health', async (req, res) => {
+  try {
+    const pool = require('./db');
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (err) {
+    res.json({ status: 'ok', db: 'error', detail: String(err) });
+  }
+});
 
 module.exports = app;

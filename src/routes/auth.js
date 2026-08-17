@@ -18,9 +18,9 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
     res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email } });
   } catch (err) {
-    console.error('Register error:', err.message);
+    console.error('Register error full:', err);
     if (err.code === '23505') return res.status(409).json({ error: 'Email already registered' });
-    res.status(500).json({ error: 'Server error', detail: err.message });
+    res.status(500).json({ error: 'Server error', detail: err.message || String(err) });
   }
 });
  
