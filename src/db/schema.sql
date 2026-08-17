@@ -67,3 +67,4 @@ CREATE TABLE IF NOT EXISTS ai_log (
   tokens_used INT  DEFAULT 0,
   logged_at   TIMESTAMPTZ DEFAULT NOW()
 );
+
