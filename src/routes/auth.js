@@ -18,8 +18,13 @@ async function sendSms(phone, code) {
         Body: `Your 2SetsFitness verification code is: ${code}. Valid for 10 minutes.`,
       }).toString(),
     });
+    return { sent: true };
   } else {
-    console.log(`[OTP] ${phone} → ${code}`);
+    console.log('\n==================================');
+    console.log(`[OTP] Phone : ${phone}`);
+    console.log(`[OTP] Code  : ${code}`);
+    console.log('==================================\n');
+    return { sent: false, devCode: code };
   }
 }
 
@@ -262,8 +267,8 @@ router.post('/send-otp', async (req, res) => {
   otpStore.set(phone, { code, expires, userId });
 
   try {
-    await sendSms(phone, code);
-    res.json({ success: true });
+    const smsResult = await sendSms(phone, code);
+    res.json({ success: true, ...(smsResult.devCode ? { devCode: smsResult.devCode } : {}) });
   } catch (err) {
     console.error('SMS error:', err.message);
     res.status(500).json({ error: 'Failed to send SMS. Check the phone number and try again.' });
