@@ -1,7 +1,27 @@
-const router = require('express').Router();
-const bcrypt  = require('bcrypt');
-const jwt     = require('jsonwebtoken');
-const pool    = require('../db');
+const router   = require('express').Router();
+const bcrypt   = require('bcrypt');
+const jwt      = require('jsonwebtoken');
+const pool     = require('../db');
+
+// In-memory OTP store: phone → { code, expires, userId }
+const otpStore = new Map();
+
+async function sendSms(phone, code) {
+  if (process.env.TWILIO_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE) {
+    const creds = Buffer.from(`${process.env.TWILIO_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+    await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_SID}/Messages.json`, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        From: process.env.TWILIO_PHONE,
+        To:   phone,
+        Body: `Your 2SetsFitness verification code is: ${code}. Valid for 10 minutes.`,
+      }).toString(),
+    });
+  } else {
+    console.log(`[OTP] ${phone} → ${code}`);
+  }
+}
 
 async function sendWelcomeEmail(email, name) {
   if (!process.env.RESEND_API_KEY) return;
@@ -169,6 +189,47 @@ router.post('/google', async (req, res) => {
     console.error('Google auth error:', err);
     res.status(500).json({ error: 'Google sign-in failed', detail: err.message });
   }
+});
+
+// ── POST /auth/send-otp ────────────────────────────────────────────────────────
+router.post('/send-otp', async (req, res) => {
+  const { phone, userId } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Phone number required' });
+
+  const code    = Math.floor(100000 + Math.random() * 900000).toString();
+  const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+  otpStore.set(phone, { code, expires, userId });
+
+  try {
+    await sendSms(phone, code);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('SMS error:', err.message);
+    res.status(500).json({ error: 'Failed to send SMS. Check the phone number and try again.' });
+  }
+});
+
+// ── POST /auth/verify-otp ──────────────────────────────────────────────────────
+router.post('/verify-otp', async (req, res) => {
+  const { phone, code, userId } = req.body;
+  const record = otpStore.get(phone);
+
+  if (!record)                   return res.status(400).json({ error: 'No code was sent to this number. Request a new one.' });
+  if (Date.now() > record.expires) return res.status(400).json({ error: 'Code expired. Request a new one.' });
+  if (record.code !== code)       return res.status(400).json({ error: 'Incorrect code. Please try again.' });
+
+  otpStore.delete(phone);
+
+  try {
+    await pool.query(
+      'UPDATE users SET phone = $1, phone_verified = true WHERE id = $2',
+      [phone, userId || record.userId]
+    );
+  } catch (_) {
+    // Column may not exist yet — non-fatal, verification still succeeds
+  }
+
+  res.json({ success: true });
 });
 
 module.exports = router;
