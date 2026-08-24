@@ -1,28 +1,17 @@
-const router     = require('express').Router();
-const bcrypt     = require('bcrypt');
-const jwt        = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
-const pool       = require('../db');
-
-// ── Email transporter (optional — only active when env vars are set) ───────────
-const mailer = (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS)
-  ? nodemailer.createTransport({
-      host:   process.env.EMAIL_HOST,
-      port:   parseInt(process.env.EMAIL_PORT || '587'),
-      secure: process.env.EMAIL_PORT === '465',
-      auth:   { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-    })
-  : null;
+const router = require('express').Router();
+const bcrypt  = require('bcrypt');
+const jwt     = require('jsonwebtoken');
+const pool    = require('../db');
 
 async function sendWelcomeEmail(email, name) {
-  if (!mailer) return;
+  if (!process.env.RESEND_API_KEY) return;
+
   const html = `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#050505;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td>
 <table width="560" cellpadding="0" cellspacing="0" style="margin:0 auto;padding:40px 24px;">
   <tr><td>
-    <!-- Logo -->
     <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
       <tr>
         <td style="width:56px;height:56px;background:#E31E24;border-radius:28px;text-align:center;vertical-align:middle;">
@@ -33,14 +22,12 @@ async function sendWelcomeEmail(email, name) {
         </td>
       </tr>
     </table>
-    <!-- Heading -->
     <h1 style="font-size:26px;font-weight:900;color:#ffffff;margin:0 0 10px;letter-spacing:-0.5px;">
       Welcome, ${name}! 💪
     </h1>
     <p style="font-size:14px;color:#7a7e8a;margin:0 0 24px;line-height:1.7;">
       Your account is set up and ready. Here's what's waiting for you inside the app:
     </p>
-    <!-- Features -->
     <table width="100%" cellpadding="0" cellspacing="8" style="margin-bottom:28px;">
       <tr>
         <td style="background:#111318;border:1px solid #2a2d36;border-left:2px solid #E31E24;border-radius:10px;padding:14px 16px;">
@@ -66,7 +53,6 @@ async function sendWelcomeEmail(email, name) {
     <p style="font-size:14px;color:#7a7e8a;margin:0 0 8px;line-height:1.7;">
       Open the app to complete your setup and log your first session.
     </p>
-    <!-- Footer -->
     <p style="font-size:11px;color:#4a4d58;border-top:1px solid #2a2d36;padding-top:20px;margin-top:32px;line-height:1.7;">
       Train smarter. Track everything.<br>
       You're receiving this because you created an account at 2SetsFitness.
@@ -77,12 +63,23 @@ async function sendWelcomeEmail(email, name) {
 </body>
 </html>`;
 
-  await mailer.sendMail({
-    from:    `"2SetsFitness" <${process.env.EMAIL_USER}>`,
-    to:      email,
-    subject: `Welcome to 2SetsFitness, ${name}! 💪`,
-    html,
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from:    'onboarding@resend.dev',
+      to:      email,
+      subject: `Welcome to 2SetsFitness, ${name}! 💪`,
+      html,
+    }),
   });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
 }
 
 // ── POST /auth/register ────────────────────────────────────────────────────────
