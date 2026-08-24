@@ -191,6 +191,67 @@ router.post('/google', async (req, res) => {
   }
 });
 
+// ── POST /auth/google-code ─────────────────────────────────────────────────────
+// Exchange authorization code for user info (PKCE code flow — no client secret exposed in app)
+router.post('/google-code', async (req, res) => {
+  const { code, codeVerifier, redirectUri } = req.body;
+  if (!code) return res.status(400).json({ error: 'Authorization code required' });
+
+  try {
+    const params = new URLSearchParams({
+      code,
+      client_id:     process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri:  redirectUri,
+      grant_type:    'authorization_code',
+    });
+    if (codeVerifier) params.set('code_verifier', codeVerifier);
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    const tokens = await tokenRes.json();
+    if (tokens.error) {
+      console.error('Google token exchange error:', tokens);
+      return res.status(401).json({ error: `Google sign-in failed: ${tokens.error_description || tokens.error}` });
+    }
+
+    const infoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    if (!infoRes.ok) return res.status(401).json({ error: 'Could not fetch Google user info' });
+
+    const gUser = await infoRes.json();
+    if (!gUser.email) return res.status(401).json({ error: 'Could not get email from Google' });
+
+    const email = gUser.email.toLowerCase();
+    const name  = gUser.name || gUser.given_name || 'Athlete';
+
+    let { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    let user = rows[0];
+    let isNew = false;
+
+    if (!user) {
+      const { rows: newRows } = await pool.query(
+        'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id, email, name',
+        [email, `google:${gUser.id}`, name]
+      );
+      user = newRows[0];
+      await pool.query('INSERT INTO profiles (user_id) VALUES ($1)', [user.id]);
+      isNew = true;
+      sendWelcomeEmail(email, name).catch(err => console.warn('Welcome email (Google) failed:', err.message));
+    }
+
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, isNew, user: { id: user.id, name: user.name, email: user.email } });
+  } catch (err) {
+    console.error('Google code exchange error:', err);
+    res.status(500).json({ error: 'Google sign-in failed', detail: err.message });
+  }
+});
+
 // ── POST /auth/send-otp ────────────────────────────────────────────────────────
 router.post('/send-otp', async (req, res) => {
   const { phone, userId } = req.body;
