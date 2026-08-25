@@ -2,9 +2,9 @@ const router    = require('express').Router();
 const Anthropic = require('@anthropic-ai/sdk');
 const pool      = require('../db');
 const auth      = require('../middleware/auth');
- 
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
- 
+
 // Helper — calls Claude Haiku with a prompt, returns the text response
 async function ask(prompt, maxTokens = 400) {
   const msg = await anthropic.messages.create({
@@ -13,6 +13,12 @@ async function ask(prompt, maxTokens = 400) {
     messages:   [{ role: 'user', content: prompt }],
   });
   return msg.content[0].text;
+}
+
+// Strip markdown code fences that Claude sometimes adds despite instructions
+function parseJSON(text) {
+  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  return JSON.parse(stripped);
 }
  
 // ─── POST /ai/coach ──────────────────────────────────────────────────────────
@@ -54,7 +60,7 @@ No extra text, no markdown — only valid JSON.`;
  
   try {
     const text = await ask(prompt, 1200);
-    const programme = JSON.parse(text);
+    const programme = parseJSON(text);
     res.json({ programme });
   } catch (err) {
     res.status(500).json({ error: 'Plan generation failed', detail: err.message });
@@ -128,7 +134,7 @@ Only return valid JSON.`;
  
   try {
     const text = await ask(prompt, 200);
-    const result = JSON.parse(text);
+    const result = parseJSON(text);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Plateau analysis failed' });
@@ -159,7 +165,7 @@ Make it specific to ${sport}. Include 3-5 drills. Fit everything within ${durati
 
   try {
     const text = await ask(prompt, 600);
-    const plan = JSON.parse(text);
+    const plan = parseJSON(text);
     res.json({ plan });
   } catch (err) {
     res.status(500).json({ error: 'Plan generation failed', detail: err.message });
