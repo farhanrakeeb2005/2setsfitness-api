@@ -8,6 +8,14 @@ const MIGRATIONS = [
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT false`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS week_schedule JSONB`,
+  // Body weight tracking table
+  `CREATE TABLE IF NOT EXISTS body_logs (
+    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id   UUID REFERENCES users(id) ON DELETE CASCADE,
+    weight_kg NUMERIC(5,2) NOT NULL,
+    note      TEXT,
+    logged_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
 ];
 
 async function runMigrations() {

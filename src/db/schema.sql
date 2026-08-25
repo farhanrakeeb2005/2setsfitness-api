@@ -129,3 +129,12 @@ CREATE TABLE IF NOT EXISTS form_scores (
 -- Cumulative points (awarded server-side on each log action)
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS points INT DEFAULT 0;
 
+-- Body weight logs
+CREATE TABLE IF NOT EXISTS body_logs (
+  id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id   UUID REFERENCES users(id) ON DELETE CASCADE,
+  weight_kg NUMERIC(5,2) NOT NULL,
+  note      TEXT,
+  logged_at TIMESTAMPTZ DEFAULT NOW()
+);
+
