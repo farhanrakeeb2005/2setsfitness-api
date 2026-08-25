@@ -135,4 +135,35 @@ Only return valid JSON.`;
   }
 });
  
+// ─── POST /ai/sports-workout ─────────────────────────────────────────────────
+// Body: { sport, duration, level }
+// Returns a sport-specific training session plan.
+router.post('/sports-workout', auth, async (req, res) => {
+  const { sport = 'Football', duration = 60, level = 'intermediate' } = req.body;
+
+  const prompt = `You are a sports conditioning coach. Generate a ${duration}-minute ${sport} training session for a ${level} athlete.
+
+Return ONLY a JSON object in this exact format (no markdown, no extra text):
+{
+  "warmup": "2-3 sentence warmup description",
+  "drills": [
+    { "name": "drill name", "duration": "X min", "desc": "one line description" },
+    { "name": "drill name", "duration": "X min", "desc": "one line description" },
+    { "name": "drill name", "duration": "X min", "desc": "one line description" }
+  ],
+  "conditioning": "2 sentence conditioning block description",
+  "cooldown": "1 sentence cooldown"
+}
+
+Make it specific to ${sport}. Include 3-5 drills. Fit everything within ${duration} minutes.`;
+
+  try {
+    const text = await ask(prompt, 600);
+    const plan = JSON.parse(text);
+    res.json({ plan });
+  } catch (err) {
+    res.status(500).json({ error: 'Plan generation failed', detail: err.message });
+  }
+});
+
 module.exports = router;
