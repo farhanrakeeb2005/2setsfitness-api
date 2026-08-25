@@ -20,7 +20,10 @@ router.post('/', auth, async (req, res) => {
     'INSERT INTO history (user_id, name, sets, volume, exercises) VALUES ($1,$2,$3,$4,$5) RETURNING *',
     [req.user.id, name, sets, volume, JSON.stringify(exercises)]
   );
-  res.status(201).json(rows[0]);
+  const completedSets = exercises.reduce((total, ex) => total + (ex.sets || []).filter(s => s.done).length, 0);
+  const pts = 50 + completedSets * 5;
+  await pool.query('UPDATE profiles SET points = points + $1 WHERE user_id = $2', [pts, req.user.id]);
+  res.status(201).json({ ...rows[0], points_earned: pts });
 });
 
 // DELETE /history/:id

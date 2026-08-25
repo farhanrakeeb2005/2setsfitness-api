@@ -16,6 +16,7 @@ const waterRoutes           = require('./routes/water');
 const scheduleRoutes        = require('./routes/schedule');
 const formScoresRoutes      = require('./routes/formscores');
 const personalRecordsRoutes = require('./routes/personalrecords');
+const pointsRoutes          = require('./routes/points');
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use('/water',            waterRoutes);
 app.use('/schedule',         scheduleRoutes);
 app.use('/form-scores',      formScoresRoutes);
 app.use('/personal-records', personalRecordsRoutes);
+app.use('/points',           pointsRoutes);
 
 app.get('/health', async (req, res) => {
   try {

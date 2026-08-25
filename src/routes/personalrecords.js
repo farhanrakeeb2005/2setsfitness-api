@@ -16,6 +16,11 @@ router.get('/', auth, async (req, res) => {
 router.put('/', auth, async (req, res) => {
   const { exercise, weight } = req.body;
   if (!exercise || weight == null) return res.status(400).json({ error: 'exercise and weight required' });
+  const existing = await pool.query(
+    'SELECT weight FROM personal_records WHERE user_id=$1 AND exercise=$2',
+    [req.user.id, exercise]
+  );
+  const isNewPR = !existing.rows[0] || weight > existing.rows[0].weight;
   await pool.query(
     `INSERT INTO personal_records (user_id, exercise, weight, recorded_at)
      VALUES ($1,$2,$3,CURRENT_DATE)
@@ -27,7 +32,10 @@ router.put('/', auth, async (req, res) => {
          END`,
     [req.user.id, exercise, weight]
   );
-  res.json({ ok: true });
+  if (isNewPR) {
+    await pool.query('UPDATE profiles SET points = points + 25 WHERE user_id = $1', [req.user.id]);
+  }
+  res.json({ ok: true, isNewPR, points_earned: isNewPR ? 25 : 0 });
 });
 
 module.exports = router;

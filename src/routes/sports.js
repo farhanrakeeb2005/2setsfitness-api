@@ -20,7 +20,9 @@ router.post('/', auth, async (req, res) => {
     'INSERT INTO sports_logs (user_id, sport, emoji, duration, calories) VALUES ($1,$2,$3,$4,$5) RETURNING *',
     [req.user.id, sport, emoji ?? null, duration, calories]
   );
-  res.status(201).json(rows[0]);
+  const pts = 20 + Math.min(duration, 120);
+  await pool.query('UPDATE profiles SET points = points + $1 WHERE user_id = $2', [pts, req.user.id]);
+  res.status(201).json({ ...rows[0], points_earned: pts });
 });
 
 module.exports = router;

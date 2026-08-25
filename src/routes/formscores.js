@@ -20,7 +20,11 @@ router.post('/', auth, async (req, res) => {
     'INSERT INTO form_scores (user_id, exercise, score) VALUES ($1,$2,$3) RETURNING *',
     [req.user.id, exercise, score]
   );
-  res.status(201).json(rows[0]);
+  const ptsEarned = score >= 80 ? 15 : 0;
+  if (ptsEarned > 0) {
+    await pool.query('UPDATE profiles SET points = points + 15 WHERE user_id = $1', [req.user.id]);
+  }
+  res.status(201).json({ ...rows[0], points_earned: ptsEarned });
 });
 
 module.exports = router;

@@ -126,3 +126,6 @@ CREATE TABLE IF NOT EXISTS form_scores (
   logged_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Cumulative points (awarded server-side on each log action)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS points INT DEFAULT 0;
+
