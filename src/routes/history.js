@@ -23,4 +23,13 @@ router.post('/', auth, async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
+// DELETE /history/:id
+router.delete('/:id', auth, async (req, res) => {
+  await pool.query(
+    'DELETE FROM history WHERE id=$1 AND user_id=$2',
+    [req.params.id, req.user.id]
+  );
+  res.json({ ok: true });
+});
+
 module.exports = router;

@@ -22,6 +22,21 @@ router.post('/', auth, async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
+// PUT /routines/:id
+router.put('/:id', auth, async (req, res) => {
+  const { name, icon, exercises } = req.body;
+  const { rows } = await pool.query(
+    `UPDATE routines SET
+      name      = COALESCE($1, name),
+      icon      = COALESCE($2, icon),
+      exercises = COALESCE($3, exercises)
+     WHERE id=$4 AND user_id=$5 RETURNING *`,
+    [name ?? null, icon ?? null, exercises ? JSON.stringify(exercises) : null, req.params.id, req.user.id]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Not found' });
+  res.json(rows[0]);
+});
+
 // DELETE /routines/:id
 router.delete('/:id', auth, async (req, res) => {
   await pool.query(
