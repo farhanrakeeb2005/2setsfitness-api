@@ -22,24 +22,23 @@ function parseJSON(text) {
 }
  
 // ─── POST /ai/coach ──────────────────────────────────────────────────────────
-// Body: { exercise, reps, score, setNum, recentSets }
-// Returns a personalised coaching paragraph for the completed set.
+// Body: { exercise, reps, weight, units, setNum, recentSets }
+// Returns a personalised coaching tip for the next set.
 router.post('/coach', auth, async (req, res) => {
-  const { exercise, reps, score, setNum, recentSets = [] } = req.body;
+  const { exercise, reps, weight, units = 'kg', setNum, recentSets = [] } = req.body;
+
   const histSummary = recentSets.length
-    ? `Recent sessions: ${recentSets.map(s => `${s.reps} reps @ ${s.score}%`).join(', ')}`
-    : 'No recent history.';
- 
-  const prompt = `You are a world-class strength coach giving feedback after a set.
-Exercise: ${exercise}
-Set ${setNum}: ${reps} reps, ${score ?? 'unknown'}% form score.
+    ? `Previous sets this session: ${recentSets.map(s => `${s.w ?? s.weight ?? '?'}${units} × ${s.r ?? s.reps ?? '?'}`).join(', ')}`
+    : '';
+
+  const weightLine = weight ? `${weight}${units} × ${reps} reps` : `${reps} reps`;
+
+  const prompt = `You are a concise strength coach. The athlete just completed set ${setNum} of ${exercise}: ${weightLine}.
 ${histSummary}
- 
-Write 1-2 sentences of specific, motivating coaching feedback. Be direct and practical.
-Focus on what to improve or reinforce in the NEXT set. No filler phrases.`;
- 
+Write exactly 1-2 sentences of direct, specific coaching feedback for their NEXT set. Focus on weight adjustment, rep tempo, or technique. No filler phrases, no generic encouragement.`;
+
   try {
-    const text = await ask(prompt, 200);
+    const text = await ask(prompt, 150);
     res.json({ message: text });
   } catch (err) {
     res.status(500).json({ error: 'AI unavailable', detail: err.message });
