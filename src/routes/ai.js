@@ -171,4 +171,40 @@ Make it specific to ${sport}. Include 3-5 drills. Fit everything within ${durati
   }
 });
 
+// ─── POST /ai/meal-scan ───────────────────────────────────────────────────────
+// Body: { imageBase64: string, mimeType?: string }
+// Returns estimated nutrition from a meal photo using Claude vision.
+router.post('/meal-scan', auth, async (req, res) => {
+  const { imageBase64, mimeType = 'image/jpeg' } = req.body;
+  if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
+
+  try {
+    const msg = await anthropic.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 700,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: mimeType, data: imageBase64 },
+          },
+          {
+            type: 'text',
+            text: `Analyse this meal photo and estimate nutrition. Be realistic with portion sizes.
+Return ONLY valid JSON, no markdown fences:
+{"items":[{"name":"food name","amount":150,"unit":"g","calories":230,"protein":8,"carbs":30,"fat":7}],"total":{"calories":230,"protein":8,"carbs":30,"fat":7},"confidence":"high"}
+confidence must be "high", "medium", or "low". Include every distinct food item visible.`,
+          },
+        ],
+      }],
+    });
+
+    const result = parseJSON(msg.content[0].text);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Meal scan failed', detail: err.message });
+  }
+});
+
 module.exports = router;
