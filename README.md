@@ -64,6 +64,9 @@ All routes except `/auth/*` and `/health` require a `Authorization: Bearer <toke
 | Sports                    | `/sports`                    | GET, POST                |
 | Water Intake                | `/water`                     | GET, PUT                |
 | Weekly Schedule              | `/schedule`                   | GET, PUT                |
+| Cloud Backup (app data)      | `/sync`                       | GET `?since=<ms>`, PUT, DELETE |
+
+`/sync` keeps one JSON document per user and collection (routines, history, logs, schedule, profile, fighter… — see `src/lib/syncMerge.js`). A PUT is merged into the stored copy with the app's own rules (union by id, newer copy wins, deletions only by tombstone), so a phone with less data can't wipe the backup. Bodies up to 5 MB, 3 MB per collection, 60 requests/min per user. `npm test` runs its tests against an in-memory database (no secrets needed).
 
 ### Health Check
 `GET /health` — returns API and database connection status.
