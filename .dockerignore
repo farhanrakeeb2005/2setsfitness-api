@@ -1,0 +1,18 @@
+# never in the image: secrets, local deps, tests, git
+node_modules
+.env
+.env.*
+firebase-service-account.json
+*service-account*.json
+test
+test.js
+dbtest.js
+.git
+.gitignore
+.gcloudignore
+*.log
+.DS_Store
+Dockerfile
+.dockerignore
+DEPLOY.md
+README.md

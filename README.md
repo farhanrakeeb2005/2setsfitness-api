@@ -66,7 +66,7 @@ All routes except `/auth/*` and `/health` require a `Authorization: Bearer <toke
 | Weekly Schedule              | `/schedule`                   | GET, PUT                |
 | Cloud Backup (app data)      | `/sync`                       | GET `?since=<ms>`, PUT, DELETE |
 
-`/sync` keeps one JSON document per user and collection (routines, history, logs, schedule, profile, fighter… — see `src/lib/syncMerge.js`). A PUT is merged into the stored copy with the app's own rules (union by id, newer copy wins, deletions only by tombstone), so a phone with less data can't wipe the backup. Bodies up to 5 MB, 3 MB per collection, 60 requests/min per user. `npm test` runs its tests against an in-memory database (no secrets needed).
+(The app now backs up to Firestore directly and no longer calls `/sync`; the routes stay for older builds.) `/sync` keeps one JSON document per user and collection (routines, history, logs, schedule, profile, fighter… — see `src/lib/syncMerge.js`). A PUT is merged into the stored copy with the app's own rules (union by id, newer copy wins, deletions only by tombstone), so a phone with less data can't wipe the backup. Bodies up to 5 MB, 3 MB per collection, 60 requests/min per user. `npm test` runs its tests against an in-memory database (no secrets needed).
 
 ### Health Check
 `GET /health` — returns API and database connection status.
@@ -123,7 +123,7 @@ Optional (only needed if you use these features): `TWILIO_*` (phone OTP), `GOOGL
 
 ## Deployment
 
-Designed to run on [Railway](https://railway.app) — `PORT` and `DATABASE_URL` are picked up automatically from the Railway Postgres plugin. `server.js` runs idempotent startup migrations (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`) on boot, so schema changes ship safely with each deploy.
+Runs on **Google Cloud Run** (the `Dockerfile` here, `gcloud run deploy --source .`) with Postgres on **Neon**; the app's cloud backup lives in Firestore, not here. Step-by-step setup, every environment variable and the expected cost: **[DEPLOY.md](DEPLOY.md)**. `server.js` runs idempotent startup migrations (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`) on boot, so schema changes ship safely with each deploy; a new empty database is set up once with `npm run db:setup:node` (or the two SQL files in Neon's SQL editor).
 
 ## License
 

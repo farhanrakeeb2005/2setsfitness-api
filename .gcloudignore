@@ -1,0 +1,15 @@
+# What `gcloud run deploy --source .` does NOT upload (it uploads the rest to
+# Cloud Build). Same as .dockerignore: no secrets ever leave this machine.
+.gcloudignore
+.git
+.gitignore
+node_modules
+.env
+.env.*
+firebase-service-account.json
+*service-account*.json
+test
+test.js
+dbtest.js
+*.log
+.DS_Store

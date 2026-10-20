@@ -1,14 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const { initializeApp, getApps, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const pool = require('../db');
+const { initFirebaseAdmin } = require('../lib/firebaseAdmin');
 
-if (!getApps().length) {
-  const keyPath = path.resolve(process.cwd(), process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json');
-  const serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
-  initializeApp({ credential: cert(serviceAccount) });
-}
+// service account JSON/file, or Application Default Credentials on Cloud Run
+// (src/lib/firebaseAdmin.js)
+initFirebaseAdmin();
 
 // Creates the users/profiles rows on a brand-new Firebase uid's first request.
 // Safe to call on every request — ON CONFLICT DO NOTHING makes it a no-op after the first time.

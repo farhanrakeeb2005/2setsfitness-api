@@ -12,7 +12,8 @@ const aiLimiter = rateLimit({
   message: { error: 'Too many AI requests — please wait a minute.' },
 });
 
-// cloud backup syncs: a few per minute per phone is normal. Counted per
+// cloud backup syncs: a few per minute per phone is normal. (The app now
+// backs up to Firestore directly; /sync stays for older app builds.) Counted per
 // signed-in user (it runs after the token check), not per IP.
 const syncLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -41,6 +42,10 @@ const bodyRoutes            = require('./routes/body');
 const { createSyncRouter }  = require('./routes/sync');
 
 const app = express();
+
+// Behind Cloud Run's (or Railway's) proxy every request comes from the proxy:
+// trust its X-Forwarded-For so the rate limits count real clients.
+if (process.env.K_SERVICE || process.env.TRUST_PROXY) app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors());

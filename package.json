@@ -8,7 +8,8 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "db:setup": "psql $DATABASE_URL -f src/db/schema.sql",
-    "db:migrate-firebase": "psql $DATABASE_URL -f src/db/migrate_firebase_auth.sql"
+    "db:migrate-firebase": "psql $DATABASE_URL -f src/db/migrate_firebase_auth.sql",
+    "db:setup:node": "node scripts/db-setup.js"
   },
   "keywords": [],
   "author": "",

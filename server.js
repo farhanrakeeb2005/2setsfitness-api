@@ -35,5 +35,9 @@ async function runMigrations() {
 }
 
 runMigrations().then(() => {
-  app.listen(PORT, () => console.log(`API running on port ${PORT}`));
+  const server = app.listen(PORT, () => console.log(`API running on port ${PORT}`));
+  // Cloud Run stops an idle instance with SIGTERM: finish requests, close the pool
+  process.on('SIGTERM', () => {
+    server.close(() => pool.end().finally(() => process.exit(0)));
+  });
 });
