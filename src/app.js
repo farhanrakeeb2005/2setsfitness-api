@@ -12,6 +12,17 @@ const aiLimiter = rateLimit({
   message: { error: 'Too many AI requests — please wait a minute.' },
 });
 
+// cloud backup syncs: a few per minute per phone is normal. Counted per
+// signed-in user (it runs after the token check), not per IP.
+const syncLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  keyGenerator: (req) => req.user.id,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many sync requests — please wait a minute.' },
+});
+
 const authRoutes            = require('./routes/auth');
 const profileRoutes         = require('./routes/profile');
 const routinesRoutes        = require('./routes/routines');
@@ -27,11 +38,15 @@ const formScoresRoutes      = require('./routes/formscores');
 const personalRecordsRoutes = require('./routes/personalrecords');
 const pointsRoutes          = require('./routes/points');
 const bodyRoutes            = require('./routes/body');
+const { createSyncRouter }  = require('./routes/sync');
 
 const app = express();
 
 app.use(helmet());
 app.use(cors());
+// before the global parser: a first backup can be a few MB (default 100 kB)
+app.use('/sync', express.json({ limit: '5mb' }),
+  createSyncRouter({ pool: require('./db'), auth: require('./middleware/auth'), limiter: syncLimiter }));
 app.use(express.json());
 
 app.use('/auth',             authRoutes);

@@ -138,3 +138,14 @@ CREATE TABLE IF NOT EXISTS body_logs (
   logged_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+
+-- Cloud backup of the app's local data (src/routes/sync.js): one JSON
+-- document per user and collection. server.js creates it on start as well.
+CREATE TABLE IF NOT EXISTS user_sync (
+  user_id    TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  data       JSONB,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, collection)
+);
+CREATE INDEX IF NOT EXISTS user_sync_updated ON user_sync (user_id, updated_at);
