@@ -8,6 +8,8 @@ const MIGRATIONS = [
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT false`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS week_schedule JSONB`,
+  // update emails: on by default, one-click off from the email footer (src/routes/email.js)
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_updates BOOLEAN NOT NULL DEFAULT TRUE`,
   // Body weight tracking table
   `CREATE TABLE IF NOT EXISTS body_logs (
     id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -39,6 +39,7 @@ const formScoresRoutes      = require('./routes/formscores');
 const personalRecordsRoutes = require('./routes/personalrecords');
 const pointsRoutes          = require('./routes/points');
 const bodyRoutes            = require('./routes/body');
+const emailRoutes           = require('./routes/email');
 const { createSyncRouter }  = require('./routes/sync');
 
 const app = express();
@@ -69,6 +70,7 @@ app.use('/form-scores',      formScoresRoutes);
 app.use('/personal-records', personalRecordsRoutes);
 app.use('/points',           pointsRoutes);
 app.use('/body',             bodyRoutes);
+app.use('/email',            emailRoutes);
 
 app.get('/health', async (req, res) => {
   try {

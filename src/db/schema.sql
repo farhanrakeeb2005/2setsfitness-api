@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   name       TEXT NOT NULL DEFAULT 'Athlete',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_updates BOOLEAN NOT NULL DEFAULT TRUE;
  
 -- Profile (goal, level, units, streak)
 CREATE TABLE IF NOT EXISTS profiles (
