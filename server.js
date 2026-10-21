@@ -11,7 +11,7 @@ const MIGRATIONS = [
   // Body weight tracking table
   `CREATE TABLE IF NOT EXISTS body_logs (
     id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id   UUID REFERENCES users(id) ON DELETE CASCADE,
+    user_id   TEXT REFERENCES users(id) ON DELETE CASCADE,   -- Firebase uid, like users.id
     weight_kg NUMERIC(5,2) NOT NULL,
     note      TEXT,
     logged_at TIMESTAMPTZ DEFAULT NOW()

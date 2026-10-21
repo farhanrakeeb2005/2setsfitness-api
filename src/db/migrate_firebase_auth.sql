@@ -15,6 +15,7 @@ ALTER TABLE recovery_logs    DROP CONSTRAINT IF EXISTS recovery_logs_user_id_fke
 ALTER TABLE nutrition_logs   DROP CONSTRAINT IF EXISTS nutrition_logs_user_id_fkey;
 ALTER TABLE sports_logs      DROP CONSTRAINT IF EXISTS sports_logs_user_id_fkey;
 ALTER TABLE water_logs       DROP CONSTRAINT IF EXISTS water_logs_user_id_fkey;
+ALTER TABLE form_scores      DROP CONSTRAINT IF EXISTS form_scores_user_id_fkey;
 
 -- 2. users.id: drop the UUID auto-default, switch type to TEXT
 ALTER TABLE users ALTER COLUMN id DROP DEFAULT;
@@ -32,6 +33,7 @@ ALTER TABLE recovery_logs    ALTER COLUMN user_id TYPE TEXT USING user_id::text;
 ALTER TABLE nutrition_logs   ALTER COLUMN user_id TYPE TEXT USING user_id::text;
 ALTER TABLE sports_logs      ALTER COLUMN user_id TYPE TEXT USING user_id::text;
 ALTER TABLE water_logs       ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+ALTER TABLE form_scores      ALTER COLUMN user_id TYPE TEXT USING user_id::text;
 
 -- 4. Re-add the FK constraints (both sides are TEXT now, so this is valid again)
 ALTER TABLE profiles         ADD CONSTRAINT profiles_user_id_fkey         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
@@ -45,3 +47,4 @@ ALTER TABLE recovery_logs    ADD CONSTRAINT recovery_logs_user_id_fkey    FOREIG
 ALTER TABLE nutrition_logs   ADD CONSTRAINT nutrition_logs_user_id_fkey   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE sports_logs      ADD CONSTRAINT sports_logs_user_id_fkey      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 ALTER TABLE water_logs       ADD CONSTRAINT water_logs_user_id_fkey       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE form_scores      ADD CONSTRAINT form_scores_user_id_fkey      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
