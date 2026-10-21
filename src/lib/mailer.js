@@ -27,7 +27,7 @@ function getTransport() {
     transport = require('nodemailer').createTransport({
       service: 'gmail',
       // Google shows the app password in groups of four: spaces don't belong in it
-      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD.replace(/s+/g, '') },
+      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD.replace(/\s+/g, '') },
     });
   }
   return transport;
