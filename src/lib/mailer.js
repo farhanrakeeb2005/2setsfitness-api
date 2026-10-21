@@ -33,10 +33,15 @@ function getTransport() {
   return transport;
 }
 
+// the app icon, served by the website (GitHub Pages); emails can't carry local files
+const LOGO = process.env.EMAIL_LOGO_URL || 'https://farhanrakeeb2005.github.io/2setsfitness-site/img/icon.png';
 const shell = (inner, footer) => `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f2f3f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#141416">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
 <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden">
-<tr><td style="background:#050505;padding:22px 28px"><span style="font-size:15px;font-weight:900;letter-spacing:4px;color:#ffffff"><span style="color:#E31E24">2</span>SETSFITNESS</span></td></tr>
+<tr><td style="background:#050505;padding:18px 28px"><table cellpadding="0" cellspacing="0"><tr>
+<td style="vertical-align:middle"><img src="${LOGO}" width="44" height="44" alt="2SetsFitness" style="display:block;border:0;border-radius:10px"></td>
+<td style="vertical-align:middle;padding-left:12px"><span style="font-size:16px;font-weight:900;letter-spacing:4px;color:#ffffff"><span style="color:#E31E24">2</span>SETSFITNESS</span></td>
+</tr></table></td></tr>
 <tr><td style="padding:28px">${inner}</td></tr>
 <tr><td style="padding:0 28px 26px;font-size:12px;color:#6b6e7b;line-height:1.6;border-top:1px solid #ececf1"><p style="margin:16px 0 0">${footer}</p></td></tr>
 </table></td></tr></table></body></html>`;
