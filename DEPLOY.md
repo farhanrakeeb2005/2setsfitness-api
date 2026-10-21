@@ -1,5 +1,24 @@
 # Deploying 2SetsFitness (after Railway)
 
+## What is deployed now (2026-10-21)
+
+| | |
+|---|---|
+| Service | Cloud Run `twosetsfitness-api`, project `setsfitness-api` (number 608365314707), region `europe-west2` |
+| URL | https://twosetsfitness-api-608365314707.europe-west2.run.app (the app's `API_BASE_URL`, `formcoach-app/src/config.js`) |
+| Settings | min instances 0, max 2, 1 CPU, 512 MiB, timeout 120 s, unauthenticated invocation (every data route checks the Firebase ID token itself) |
+| Secrets (Secret Manager, project `setsfitness-api`) | `ANTHROPIC_API_KEY`, `DATABASE_URL` (Neon pooled URL), `JWT_SECRET` |
+| Env var | `FIREBASE_PROJECT_ID=fitness-app-5c48a` |
+| Database | Neon project `small-dawn-83425002` (London), 14 tables created with `npm run db:setup:node` |
+| Billing | account "2SetsFitness API" linked to `setsfitness-api` only; £1 budget alert (50% / 90% / 100%). The Firebase project stays on Spark. |
+
+Check it: `curl https://twosetsfitness-api-608365314707.europe-west2.run.app/health` should answer `{"status":"ok","db":"connected"}`.
+Redeploy after a code change: run the `gcloud run deploy` command from step C5 again (add `--project setsfitness-api`); secrets and env vars stay set.
+
+The steps below are how it was set up, in case it has to be done again.
+
+## Setup steps
+
 The new setup, all on free tiers:
 
 | Piece | Where | What it does |
