@@ -5,14 +5,14 @@ const auth      = require('../middleware/auth');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Helper — calls Claude Haiku with a prompt, returns the text response
-async function ask(prompt, maxTokens = 400) {
-  const msg = await anthropic.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: maxTokens,
-    messages:   [{ role: 'user', content: prompt }],
-  });
-  return msg.content[0].text;
+const { models, request, replyText } = require('../lib/aiModel');
+
+// Helper: asks Claude (src/lib/aiModel.js has the model and why) and returns
+// the reply text. maxTokens is the answer's own length cap.
+async function ask(prompt, maxTokens = 400, { chat = false, effort = 'low' } = {}) {
+  const m = models();
+  const msg = await anthropic.messages.create(request({ model: chat ? m.chat : m.all, prompt, maxTokens, effort }));
+  return replyText(msg);
 }
 
 // Strip markdown code fences that Claude sometimes adds despite instructions
@@ -131,14 +131,19 @@ No tables, no headings with #, no arrows, never use em dashes or en dashes.`;
 router.post('/advice', auth, quota('advice'), async (req, res) => {
   const { question, profile = {}, lang } = req.body;
  
-  const prompt = `You are a knowledgeable personal trainer answering a question from your athlete.
+  const prompt = `You are a knowledgeable personal trainer and the athlete's AI coach in a fitness app, answering a message from them.
 Athlete profile: goal=${profile.goal || 'general fitness'}, level=${profile.level || 'intermediate'}.
-Question: ${question}
- 
+Message: ${question}
+
+Most messages are about training, nutrition, recovery or health; answer those as their coach.
+If they ask about something else (a general knowledge question, a fact, a word, small talk), answer it correctly and briefly in 1-3 sentences, like a friendly coach would, then you may add one short line linking back to their training. Never refuse just because it isn't about fitness.
+Facts that can change (who holds an office, records, prices, recent events) may have changed since your training data: give what you know and say it was true as of your training if it might be out of date. If you don't know, say so; never make something up.
+Any training context above is what the app logged for this athlete: trust those numbers, read "bodyweight" sets as sets done without added weight and "s hold" as seconds held, and don't question them unless asked.
+
 ${ADVICE_FORMAT}${langDirective(lang)}`;
- 
+
   try {
-    const text = await ask(prompt, 700);
+    const text = await ask(prompt, 700, { chat: true, effort: 'medium' });
     res.json({ answer: text });
   } catch (err) {
     res.status(500).json({ error: 'Advice unavailable' });
@@ -214,12 +219,10 @@ router.post('/meal-scan', auth, quota('meal-scan'), async (req, res) => {
   if (!MEAL_TYPES.has(mimeType)) return res.status(400).json({ error: 'Unsupported image type' });
 
   try {
-    const msg = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 700,
-      messages: [{
-        role: 'user',
-        content: [
+    const msg = await anthropic.messages.create(request({
+      model:     models().all,
+      maxTokens: 700,
+      content: [
           {
             type: 'image',
             source: { type: 'base64', media_type: mimeType, data: imageBase64 },
@@ -232,11 +235,10 @@ Return ONLY valid JSON, no markdown fences:
 confidence must be "high", "medium", or "low". Include every distinct food item visible.
 If there is no food in the photo, return {"items":[],"total":{"calories":0,"protein":0,"carbs":0,"fat":0},"confidence":"low"}.${langDirective(lang, { json: true })}`,
           },
-        ],
-      }],
-    });
+      ],
+    }));
 
-    const result = parseJSON(msg.content[0].text);
+    const result = parseJSON(replyText(msg));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Meal scan failed', detail: err.message });

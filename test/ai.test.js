@@ -65,3 +65,18 @@ test('the middleware logs a call, refuses past the cap, and lets calls through o
   console.error = orig;
   assert.equal(nexted, 2);
 });
+
+test('the AI model and how its reply is read', () => {
+  const { DEFAULT_MODEL, models, request, replyText } = require('../src/lib/aiModel');
+  assert.deepEqual(models({}), { all: DEFAULT_MODEL, chat: DEFAULT_MODEL });
+  assert.deepEqual(models({ AI_CHAT_MODEL: 'claude-sonnet-5-5' }), { all: DEFAULT_MODEL, chat: 'claude-sonnet-5-5' });
+  const r = request({ model: 'm', prompt: 'hi', maxTokens: 200 });
+  assert.equal(r.output_config.effort, 'low');
+  assert.ok(r.max_tokens > 200);                      // room for thinking
+  assert.equal(r.temperature, undefined);
+  assert.deepEqual(r.messages, [{ role: 'user', content: 'hi' }]);
+  // thinking blocks come first; only the text is the answer
+  assert.equal(replyText({ stop_reason: 'end_turn', content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: ' Hello ' }] }), 'Hello');
+  assert.throws(() => replyText({ stop_reason: 'refusal', content: [] }), /declined/);
+  assert.throws(() => replyText({ stop_reason: 'max_tokens', content: [{ type: 'thinking' }] }), /no text/);
+});

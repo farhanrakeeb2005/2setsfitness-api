@@ -145,6 +145,8 @@ gcloud projects add-iam-policy-binding <PROJECT_ID> --member="serviceAccount:<PR
 | `PG_POOL_MAX` | optional, default 3 | env var |
 | `AI_DAILY_LIMIT` | optional, default 150: AI calls one user can make in 24 hours, all `/ai/*` routes together (`src/lib/aiQuota.js`). Past it they get a 429 until older calls drop out of the 24 hours. | env var |
 | `AI_SCAN_DAILY_LIMIT` | optional, default 30: meal photo scans one user can make in 24 hours (they cost the most). | env var |
+| `AI_MODEL` | optional, default `claude-haiku-5-5`: the Claude model every `/ai/*` route uses (`src/lib/aiModel.js`). | env var |
+| `AI_CHAT_MODEL` | optional, defaults to `AI_MODEL`: the model for the coach chat (`/ai/advice`) only, e.g. `claude-sonnet-5-5` for sharper answers at about 20x the cost per reply. | env var |
 | `TRUST_PROXY` | optional. It's turned on automatically on Cloud Run (`K_SERVICE` is set there) so rate limits count real client IPs. | — |
 
 `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER` and `EMAIL_PASS` in `.env.example` aren't read by the code.
