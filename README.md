@@ -37,7 +37,7 @@ All routes except `/auth/*` and `/health` require a `Authorization: Bearer <toke
 | POST   | `/send-otp`           | Send a phone verification code (SMS)           |
 | POST   | `/verify-otp`         | Verify the phone OTP code                      |
 
-### AI Coaching — `/ai` (rate limited: 20 req/min)
+### AI Coaching — `/ai` (rate limited: 20 req/min per IP, plus per-user daily caps: `AI_DAILY_LIMIT`, `AI_SCAN_DAILY_LIMIT`; JSON bodies up to 2 MB for meal photos)
 | Method | Route              | Description                                          |
 |--------|---------------------|-------------------------------------------------------|
 | POST   | `/coach`              | Real-time coaching tip for the athlete's next set     |

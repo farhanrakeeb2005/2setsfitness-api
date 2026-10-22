@@ -21,38 +21,45 @@ function parseJSON(text) {
   return JSON.parse(stripped);
 }
 
-// Map app language codes to spoken language names so AI replies in the user's
-// language. Falls back to English (default) when the code is unknown/missing.
-const LANG_NAMES = {
-  en: 'English', ar: 'Arabic', ur: 'Urdu', es: 'Spanish', fr: 'French',
-  pt: 'Portuguese', tr: 'Turkish', de: 'German', it: 'Italian',
-  nl: 'Dutch', ru: 'Russian', hi: 'Hindi', ja: 'Japanese',
-};
-function langDirective(lang) {
-  const name = LANG_NAMES[lang];
-  return name && name !== 'English'
-    ? `\nReply entirely in ${name}. Keep all user-facing text in ${name}.`
-    : '';
-}
- 
+const { langDirective, COACH_STYLE, splitCoachNote, clean } = require('../lib/aiText');
+const { aiQuota } = require('../lib/aiQuota');
+
+// per-user daily caps on every AI call (src/lib/aiQuota.js), after the token check
+const quota = (endpoint) => aiQuota(pool, endpoint);
+
 // ─── POST /ai/coach ──────────────────────────────────────────────────────────
-// Body: { exercise, reps, weight, units, setNum, recentSets }
-// Returns a personalised coaching tip for the next set.
-router.post('/coach', auth, async (req, res) => {
-  const { exercise, reps, weight, units = 'kg', setNum, recentSets = [], lang } = req.body;
+// Body: { exercise, reps, weight, units, setNum, setsPlanned, recentSets,
+//         score, usingWeights, context, lang }
+// Returns a coaching tip for the next set. The app sends what the athlete
+// already did (sets left, earlier exercises, the same muscles trained in the
+// last days, fatigue) as `context`, or, from builds before this route read
+// it, as "[coach context: ...]" after the exercise name.
+router.post('/coach', auth, quota('coach'), async (req, res) => {
+  const { reps, weight, units = 'kg', setNum, setsPlanned, recentSets = [], score, usingWeights, lang } = req.body;
+  const { name: exercise, context: fromName } = splitCoachNote(req.body.exercise);
+  const context = clean(req.body.context, 700) || fromName;
+  const u = clean(units, 6) || 'kg';
+  const sets = Array.isArray(recentSets) ? recentSets.slice(-6) : [];
 
-  const histSummary = recentSets.length
-    ? `Previous sets this session: ${recentSets.map(s => `${s.w ?? s.weight ?? '?'}${units} × ${s.r ?? s.reps ?? '?'}`).join(', ')}`
+  const histSummary = sets.length
+    ? `Previous sets of this exercise this session: ${sets.map(s => `${s.w ?? s.weight ?? '?'}${u} × ${s.r ?? s.reps ?? '?'}`).join(', ')}.`
     : '';
+  const planned = Number(setsPlanned) > 0
+    ? `This is set ${setNum} of ${Number(setsPlanned)} planned (${Math.max(0, Number(setsPlanned) - Number(setNum))} left). Never suggest more sets than planned.`
+    : '';
+  const weightLine = usingWeights === false || !(Number(weight) > 0)
+    ? `${clean(reps, 6)} reps (bodyweight or weight not logged, so do not talk about weight)`
+    : `${clean(weight, 8)}${u} × ${clean(reps, 6)} reps`;
+  const form = Number.isFinite(Number(score)) && score !== null && score !== '' ? `Form score from the camera: ${Math.round(Number(score))}%.` : '';
 
-  const weightLine = weight ? `${weight}${units} × ${reps} reps` : `${reps} reps`;
-
-  const prompt = `You are a concise strength coach. The athlete just completed set ${setNum} of ${exercise}: ${weightLine}.
-${histSummary}
-Write exactly 1-2 sentences of direct, specific coaching feedback for their NEXT set. Focus on weight adjustment, rep tempo, or technique. No filler phrases, no generic encouragement.${langDirective(lang)}`;
+  const prompt = `You are a strength coach. The athlete just finished set ${clean(setNum, 4)} of ${exercise}: ${weightLine}.
+${[histSummary, planned, form].filter(Boolean).join('\n')}
+${context ? `What they have already done: ${context}.` : ''}
+Write 1-2 sentences of specific feedback for their next set: weight (keep, raise or lower), tempo or technique. If the muscles are already tired from earlier work, say so and do not push for more weight, sets or reps. No filler, no generic encouragement.
+${COACH_STYLE}${langDirective(lang)}`;
 
   try {
-    const text = await ask(prompt, 150);
+    const text = await ask(prompt, 170);
     res.json({ message: text });
   } catch (err) {
     res.status(500).json({ error: 'AI unavailable', detail: err.message });
@@ -62,14 +69,14 @@ Write exactly 1-2 sentences of direct, specific coaching feedback for their NEXT
 // ─── POST /ai/plan ───────────────────────────────────────────────────────────
 // Body: { goal, level, daysPerWeek, focusAreas }
 // Returns a structured weekly workout plan as JSON.
-router.post('/plan', auth, async (req, res) => {
+router.post('/plan', auth, quota('plan'), async (req, res) => {
   const { goal, level, daysPerWeek = 4, focusAreas = [], lang } = req.body;
  
   const prompt = `You are an expert personal trainer. Create a ${daysPerWeek}-day per week
 workout programme for a ${level} athlete whose goal is ${goal}.
 Focus areas: ${focusAreas.join(', ') || 'general fitness'}.
 Return ONLY a JSON array. Each element: { day, name, exercises: [{ name, sets, reps, rest }] }
-No extra text, no markdown — only valid JSON.${langDirective(lang)}`;
+No extra text, no markdown, only valid JSON.${langDirective(lang, { json: true })}`;
  
   try {
     const text = await ask(prompt, 1200);
@@ -83,7 +90,7 @@ No extra text, no markdown — only valid JSON.${langDirective(lang)}`;
 // ─── POST /ai/summary ────────────────────────────────────────────────────────
 // Body: { sessions }  — array of last 7 days of workout sessions
 // Returns a written weekly progress narrative.
-router.post('/summary', auth, async (req, res) => {
+router.post('/summary', auth, quota('summary'), async (req, res) => {
   const { sessions = [], lang } = req.body;
   if (!sessions.length) return res.json({ message: 'No sessions to summarise this week.' });
  
@@ -112,7 +119,7 @@ Be encouraging but honest.${langDirective(lang)}`;
 // ─── POST /ai/advice ─────────────────────────────────────────────────────────
 // Body: { question, profile }
 // Free-form fitness Q&A with user context.
-router.post('/advice', auth, async (req, res) => {
+router.post('/advice', auth, quota('advice'), async (req, res) => {
   const { question, profile = {}, lang } = req.body;
  
   const prompt = `You are a knowledgeable personal trainer answering a question from your athlete.
@@ -132,7 +139,7 @@ Answer in 2-3 sentences. Be specific and practical. No generic advice.${langDire
 // ─── POST /ai/plateau ────────────────────────────────────────────────────────
 // Body: { exercise, sessions }  — last 8 sessions for one exercise
 // Detects stalled progress and returns a specific intervention.
-router.post('/plateau', auth, async (req, res) => {
+router.post('/plateau', auth, quota('plateau'), async (req, res) => {
   const { exercise, sessions = [], lang } = req.body;
   if (sessions.length < 4) return res.json({ plateau: false, message: 'Not enough data yet.' });
  
@@ -143,7 +150,7 @@ ${history}
  
 Is the athlete plateauing? Answer in this exact JSON format:
 { "plateau": true/false, "reason": "one sentence reason", "intervention": "one specific change to make" }
-Only return valid JSON.${langDirective(lang)}`;
+Only return valid JSON.${langDirective(lang, { json: true })}`;
  
   try {
     const text = await ask(prompt, 200);
@@ -157,7 +164,7 @@ Only return valid JSON.${langDirective(lang)}`;
 // ─── POST /ai/sports-workout ─────────────────────────────────────────────────
 // Body: { sport, duration, level }
 // Returns a sport-specific training session plan.
-router.post('/sports-workout', auth, async (req, res) => {
+router.post('/sports-workout', auth, quota('sports-workout'), async (req, res) => {
   const { sport = 'Football', duration = 60, level = 'intermediate', lang } = req.body;
 
   const prompt = `You are a sports conditioning coach. Generate a ${duration}-minute ${sport} training session for a ${level} athlete.
@@ -174,7 +181,7 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
   "cooldown": "1 sentence cooldown"
 }
 
-Make it specific to ${sport}. Include 3-5 drills. Fit everything within ${duration} minutes.${langDirective(lang)}`;
+Make it specific to ${sport}. Include 3-5 drills. Fit everything within ${duration} minutes.${langDirective(lang, { json: true })}`;
 
   try {
     const text = await ask(prompt, 600);
@@ -188,9 +195,14 @@ Make it specific to ${sport}. Include 3-5 drills. Fit everything within ${durati
 // ─── POST /ai/meal-scan ───────────────────────────────────────────────────────
 // Body: { imageBase64: string, mimeType?: string }
 // Returns estimated nutrition from a meal photo using Claude vision.
-router.post('/meal-scan', auth, async (req, res) => {
+// The app shrinks the photo to ~640 px first; up to ~1.4 MB of base64 is
+// accepted (app.js gives /ai a 2 MB body limit).
+const MEAL_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+router.post('/meal-scan', auth, quota('meal-scan'), async (req, res) => {
   const { imageBase64, mimeType = 'image/jpeg', lang } = req.body;
-  if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
+  if (!imageBase64 || typeof imageBase64 !== 'string') return res.status(400).json({ error: 'No image provided' });
+  if (imageBase64.length > 1_400_000) return res.status(413).json({ error: 'Image too large' });
+  if (!MEAL_TYPES.has(mimeType)) return res.status(400).json({ error: 'Unsupported image type' });
 
   try {
     const msg = await anthropic.messages.create({
@@ -208,7 +220,8 @@ router.post('/meal-scan', auth, async (req, res) => {
             text: `Analyse this meal photo and estimate nutrition. Be realistic with portion sizes.
 Return ONLY valid JSON, no markdown fences:
 {"items":[{"name":"food name","amount":150,"unit":"g","calories":230,"protein":8,"carbs":30,"fat":7}],"total":{"calories":230,"protein":8,"carbs":30,"fat":7},"confidence":"high"}
-confidence must be "high", "medium", or "low". Include every distinct food item visible.${langDirective(lang)}`,
+confidence must be "high", "medium", or "low". Include every distinct food item visible.
+If there is no food in the photo, return {"items":[],"total":{"calories":0,"protein":0,"carbs":0,"fat":0},"confidence":"low"}.${langDirective(lang, { json: true })}`,
           },
         ],
       }],

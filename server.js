@@ -28,6 +28,8 @@ const MIGRATIONS = [
     PRIMARY KEY (user_id, collection)
   )`,
   `CREATE INDEX IF NOT EXISTS user_sync_updated ON user_sync (user_id, updated_at)`,
+  // per-user daily AI caps count a user's calls over the last 24 h (src/lib/aiQuota.js)
+  `CREATE INDEX IF NOT EXISTS ai_log_user_time ON ai_log (user_id, logged_at)`,
 ];
 
 async function runMigrations() {

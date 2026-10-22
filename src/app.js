@@ -53,7 +53,11 @@ app.use(cors());
 // before the global parser: a first backup can be a few MB (default 100 kB)
 app.use('/sync', express.json({ limit: '5mb' }),
   createSyncRouter({ pool: require('./db'), auth: require('./middleware/auth'), limiter: syncLimiter }));
-app.use(express.json());
+// JSON bodies: 100 KB (express's default) everywhere but /ai, where a meal
+// photo arrives as base64 (the app shrinks it first; 2 MB leaves headroom)
+const jsonSmall = express.json();
+const jsonAI = express.json({ limit: '2mb' });
+app.use((req, res, next) => (req.path.startsWith('/ai/') ? jsonAI : jsonSmall)(req, res, next));
 
 app.use('/auth',             authRoutes);
 app.use('/profile',          profileRoutes);
