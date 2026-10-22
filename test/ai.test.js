@@ -49,7 +49,7 @@ test('the middleware logs a call, refuses past the cap, and lets calls through o
   const req = { user: { id: 'u1' } };
   await aiQuota(pool, 'coach')(req, fakeRes(), () => { nexted += 1; });
   assert.equal(nexted, 1);
-  assert.deepEqual(calls.map((c) => c[0]), ['SELECT', 'INSERT']);
+  assert.deepEqual(calls.slice(0, 2).map((c) => c[0]), ['SELECT', 'INSERT']);   // (now and then a prune follows)
   assert.deepEqual(calls[1][1], ['u1', 'coach']);
 
   count = { total: 150, scan: 0 };

@@ -8,6 +8,9 @@
 // cost the most). A database error lets the call through (logged): a cap
 // is not worth breaking the app over.
 
+// share of calls that also prune old ai_log rows (cheap with the index)
+const PRUNE_CHANCE = 0.02;
+
 const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : d);
 
 function limits(env = process.env) {
@@ -43,6 +46,11 @@ function aiQuota(pool, endpoint) {
         });
       }
       await pool.query('INSERT INTO ai_log (user_id, endpoint) VALUES ($1, $2)', [uid, endpoint]);
+      // now and then, drop records older than the 90 days the privacy policy promises
+      if (Math.random() < PRUNE_CHANCE) {
+        pool.query(`DELETE FROM ai_log WHERE logged_at < NOW() - INTERVAL '90 days'`)
+          .catch((e) => console.error('ai_log prune failed:', e.message));
+      }
     } catch (err) {
       console.error('ai quota check failed (allowed):', err.message);
     }
