@@ -21,7 +21,7 @@ function parseJSON(text) {
   return JSON.parse(stripped);
 }
 
-const { langDirective, COACH_STYLE, splitCoachNote, clean } = require('../lib/aiText');
+const { langDirective, COACH_STYLE, splitCoachNote, clean, mealNoteDirective, foodTextPrompt } = require('../lib/aiText');
 const { aiQuota } = require('../lib/aiQuota');
 
 // per-user daily caps on every AI call (src/lib/aiQuota.js), after the token check
@@ -207,13 +207,15 @@ Make it specific to ${sport}. Include 3-5 drills. Fit everything within ${durati
 });
 
 // ─── POST /ai/meal-scan ───────────────────────────────────────────────────────
-// Body: { imageBase64: string, mimeType?: string }
-// Returns estimated nutrition from a meal photo using Claude vision.
+// Body: { imageBase64: string, mimeType?: string, note?: string }
+// Returns estimated nutrition from a meal photo using Claude vision. `note`
+// is what the user already ate before the photo (items come back with
+// "eaten": true).
 // The app shrinks the photo to ~640 px first; up to ~1.4 MB of base64 is
 // accepted (app.js gives /ai a 2 MB body limit).
 const MEAL_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 router.post('/meal-scan', auth, quota('meal-scan'), async (req, res) => {
-  const { imageBase64, mimeType = 'image/jpeg', lang } = req.body;
+  const { imageBase64, mimeType = 'image/jpeg', lang, note } = req.body;
   if (!imageBase64 || typeof imageBase64 !== 'string') return res.status(400).json({ error: 'No image provided' });
   if (imageBase64.length > 1_400_000) return res.status(413).json({ error: 'Image too large' });
   if (!MEAL_TYPES.has(mimeType)) return res.status(400).json({ error: 'Unsupported image type' });
@@ -233,7 +235,7 @@ router.post('/meal-scan', auth, quota('meal-scan'), async (req, res) => {
 Return ONLY valid JSON, no markdown fences:
 {"items":[{"name":"food name","amount":150,"unit":"g","calories":230,"protein":8,"carbs":30,"fat":7}],"total":{"calories":230,"protein":8,"carbs":30,"fat":7},"confidence":"high"}
 confidence must be "high", "medium", or "low". Include every distinct food item visible.
-If there is no food in the photo, return {"items":[],"total":{"calories":0,"protein":0,"carbs":0,"fat":0},"confidence":"low"}.${langDirective(lang, { json: true })}`,
+If there is no food in the photo, return {"items":[],"total":{"calories":0,"protein":0,"carbs":0,"fat":0},"confidence":"low"}.${mealNoteDirective(note)}${langDirective(lang, { json: true })}`,
           },
       ],
     }));
@@ -242,6 +244,21 @@ If there is no food in the photo, return {"items":[],"total":{"calories":0,"prot
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Meal scan failed', detail: err.message });
+  }
+});
+
+// ─── POST /ai/food-text ──────────────────────────────────────────────────────
+// Body: { text: "2 boiled eggs", lang }
+// A food the user types on the meal snap screen (eaten before the photo, or
+// missed by it), as meal-scan items.
+router.post('/food-text', auth, quota('food-text'), async (req, res) => {
+  const text = clean(req.body?.text, 120);
+  if (!text) return res.status(400).json({ error: 'No food given' });
+  try {
+    const raw = await ask(`${foodTextPrompt(text)}${langDirective(req.body?.lang, { json: true })}`, 400);
+    res.json(parseJSON(raw));
+  } catch (err) {
+    res.status(500).json({ error: 'Food estimate failed', detail: err.message });
   }
 });
 

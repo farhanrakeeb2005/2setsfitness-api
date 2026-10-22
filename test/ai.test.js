@@ -80,3 +80,12 @@ test('the AI model and how its reply is read', () => {
   assert.throws(() => replyText({ stop_reason: 'refusal', content: [] }), /declined/);
   assert.throws(() => replyText({ stop_reason: 'max_tokens', content: [{ type: 'thinking' }] }), /no text/);
 });
+
+test('meal notes and typed foods go to the AI as quoted descriptions', () => {
+  const { mealNoteDirective, foodTextPrompt } = require('../src/lib/aiText');
+  assert.equal(mealNoteDirective(''), '');
+  const d = mealNoteDirective('ate 2 "eggs"\n and half the rice');
+  assert.match(d, /"ate 2 'eggs' and half the rice"/);
+  assert.match(d, /"eaten":true/);
+  assert.match(foodTextPrompt('2 boiled eggs'), /"2 boiled eggs"/);
+});

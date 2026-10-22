@@ -46,7 +46,8 @@ All routes except `/auth/*` and `/health` require a `Authorization: Bearer <toke
 | POST   | `/advice`              | Free-form fitness Q&A with athlete context             |
 | POST   | `/plateau`             | Detect a training plateau and suggest a fix            |
 | POST   | `/sports-workout`      | Generate a sport-specific training session             |
-| POST   | `/meal-scan`           | Estimate nutrition from a meal photo (Claude vision)   |
+| POST   | `/meal-scan`           | Estimate nutrition from a meal photo (Claude vision); optional `note` for food already eaten |
+| POST   | `/food-text`           | Estimate nutrition of a typed food ("2 boiled eggs")    |
 
 ### Data Resources
 | Resource            | Base Route            | Methods              |
