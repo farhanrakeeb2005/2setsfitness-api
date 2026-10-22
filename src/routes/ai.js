@@ -116,6 +116,15 @@ Be encouraging but honest.${langDirective(lang)}`;
   }
 });
  
+// How chat answers are laid out: the app shows "**Monday: Push Day**" lines
+// as day cards with the "- " lines under them as the exercises, and "- "
+// bullets and short paragraphs as such (formcoach-app src/lib/aiFormat.js).
+const ADVICE_FORMAT = `Answer like a personal trainer messaging the athlete: specific, practical, friendly. No generic advice.
+Keep it short (under 120 words) unless they ask for a plan or programme.
+For a weekly plan or programme: one line per day written exactly like "**Monday: Push Day**", then that day's exercises on their own lines as "- Bench press 3x8-10" (rest days as "**Sunday: Rest**"), then at most 2 short tips as "- " bullets.
+For anything else: short paragraphs of 1-2 sentences, or "- " bullets for lists. Put a blank line between parts.
+No tables, no headings with #, no arrows, never use em dashes or en dashes.`;
+
 // ─── POST /ai/advice ─────────────────────────────────────────────────────────
 // Body: { question, profile }
 // Free-form fitness Q&A with user context.
@@ -126,10 +135,10 @@ router.post('/advice', auth, quota('advice'), async (req, res) => {
 Athlete profile: goal=${profile.goal || 'general fitness'}, level=${profile.level || 'intermediate'}.
 Question: ${question}
  
-Answer in 2-3 sentences. Be specific and practical. No generic advice.${langDirective(lang)}`;
+${ADVICE_FORMAT}${langDirective(lang)}`;
  
   try {
-    const text = await ask(prompt, 300);
+    const text = await ask(prompt, 700);
     res.json({ answer: text });
   } catch (err) {
     res.status(500).json({ error: 'Advice unavailable' });
