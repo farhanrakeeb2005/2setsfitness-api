@@ -19,7 +19,7 @@ router.post('/', auth, async (req, res) => {
     'INSERT INTO nutrition_logs (user_id, meal, protein, carbs, fat, calories) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
     [req.user.id, meal, protein, carbs, fat, calories]
   );
-  await pool.query('UPDATE profiles SET points = points + 10 WHERE user_id = $1', [req.user.id]);
+  // (points: the app works out its own total and reports it, PUT /points)
   res.status(201).json({ ...rows[0], points_earned: 10 });
 });
 

@@ -43,14 +43,27 @@ router.get('/', auth, async (req, res) => {
   res.json({ points, rank: getRank(points) });
 });
 
-// GET /points/leaderboard — top 20 by points + caller's global position
+// PUT /points — { points }: the app's own total. Points are worked out on the
+// phone from its logs (local-first; the old per-log server routes are no
+// longer called), so the app reports the total for the leaderboard.
+const MAX_POINTS = 10_000_000;
+router.put('/', auth, async (req, res) => {
+  const pts = Math.round(Number(req.body?.points));
+  if (!Number.isFinite(pts) || pts < 0 || pts > MAX_POINTS) return res.status(400).json({ error: 'Invalid points' });
+  await pool.query('UPDATE profiles SET points = $1 WHERE user_id = $2', [pts, req.user.id]);
+  res.json({ points: pts, rank: getRank(pts) });
+});
+
+// GET /points/leaderboard — top 20 by points + caller's global position;
+// the caller's own row says me: true (rows don't carry user ids)
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.name, p.avatar_emoji, p.points
+    `SELECT u.name, p.avatar_emoji, p.points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
-     ORDER BY p.points DESC
-     LIMIT 20`
+     ORDER BY p.points DESC NULLS LAST, u.id
+     LIMIT 20`,
+    [req.user.id]
   );
   const leaderboard = rows.map((r, i) => ({
     position: i + 1,
@@ -58,16 +71,19 @@ router.get('/leaderboard', auth, async (req, res) => {
     avatarEmoji: r.avatar_emoji,
     points: r.points ?? 0,
     rank: getRank(r.points ?? 0),
+    me: !!r.me,
   }));
+  // (COALESCE outside the subquery: a caller with no profile row counts as 0)
   const posRow = await pool.query(
     `SELECT COUNT(*) + 1 AS position
      FROM profiles
-     WHERE points > (SELECT COALESCE(points, 0) FROM profiles WHERE user_id = $1)`,
+     WHERE COALESCE(points, 0) > COALESCE((SELECT points FROM profiles WHERE user_id = $1), 0)`,
     [req.user.id]
   );
+  const mine = leaderboard.find((r) => r.me);
   res.json({
     leaderboard,
-    myPosition: parseInt(posRow.rows[0]?.position || 1),
+    myPosition: mine ? mine.position : parseInt(posRow.rows[0]?.position || 1),
   });
 });
 

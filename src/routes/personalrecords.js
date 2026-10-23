@@ -32,9 +32,7 @@ router.put('/', auth, async (req, res) => {
          END`,
     [req.user.id, exercise, weight]
   );
-  if (isNewPR) {
-    await pool.query('UPDATE profiles SET points = points + 25 WHERE user_id = $1', [req.user.id]);
-  }
+  // (points: the app works out its own total and reports it, PUT /points)
   res.json({ ok: true, isNewPR, points_earned: isNewPR ? 25 : 0 });
 });
 

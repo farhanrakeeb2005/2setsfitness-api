@@ -21,9 +21,7 @@ router.post('/', auth, async (req, res) => {
     [req.user.id, exercise, score]
   );
   const ptsEarned = score >= 80 ? 15 : 0;
-  if (ptsEarned > 0) {
-    await pool.query('UPDATE profiles SET points = points + 15 WHERE user_id = $1', [req.user.id]);
-  }
+  // (points: the app works out its own total and reports it, PUT /points)
   res.status(201).json({ ...rows[0], points_earned: ptsEarned });
 });
 

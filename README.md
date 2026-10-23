@@ -56,7 +56,7 @@ All routes except `/auth/*` and `/health` require a `Authorization: Bearer <toke
 | Routines               | `/routines`               | GET, POST, PUT `/:id`, DELETE `/:id` |
 | Workout History         | `/history`                | GET, POST, DELETE `/:id` |
 | Leaderboard             | `/leaderboard`            | GET, POST `/submit`      |
-| Points                  | `/points`                 | GET, GET `/leaderboard`  |
+| Points                  | `/points`                 | GET, PUT (the app's own total), GET `/leaderboard` |
 | Personal Records         | `/personal-records`        | GET, PUT                |
 | Form Scores              | `/form-scores`             | GET, POST                |
 | Body Weight              | `/body`                    | GET, POST                |

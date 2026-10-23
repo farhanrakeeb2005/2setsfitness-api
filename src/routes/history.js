@@ -22,7 +22,7 @@ router.post('/', auth, async (req, res) => {
   );
   const completedSets = exercises.reduce((total, ex) => total + (ex.sets || []).filter(s => s.done).length, 0);
   const pts = 50 + completedSets * 5;
-  await pool.query('UPDATE profiles SET points = points + $1 WHERE user_id = $2', [pts, req.user.id]);
+  // (points: the app works out its own total and reports it, PUT /points)
   res.status(201).json({ ...rows[0], points_earned: pts });
 });
 
