@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
+const { cappedPoints } = require('../lib/pointsCap');
 
 const RANKS = [
   { name: 'Bronze',   min: 0,     icon: '🥉' },
@@ -45,13 +46,16 @@ router.get('/', auth, async (req, res) => {
 
 // PUT /points — { points }: the app's own total. Points are worked out on the
 // phone from its logs (local-first; the old per-log server routes are no
-// longer called), so the app reports the total for the leaderboard.
+// longer called), so the app reports the total for the leaderboard, held to
+// what the account's age makes believable (src/lib/pointsCap.js).
 const MAX_POINTS = 10_000_000;
 router.put('/', auth, async (req, res) => {
   const pts = Math.round(Number(req.body?.points));
   if (!Number.isFinite(pts) || pts < 0 || pts > MAX_POINTS) return res.status(400).json({ error: 'Invalid points' });
-  await pool.query('UPDATE profiles SET points = $1 WHERE user_id = $2', [pts, req.user.id]);
-  res.json({ points: pts, rank: getRank(pts) });
+  const { rows } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
+  const stored = cappedPoints(pts, rows[0]?.created_at);
+  await pool.query('UPDATE profiles SET points = $1 WHERE user_id = $2', [stored, req.user.id]);
+  res.json({ points: stored, rank: getRank(stored) });
 });
 
 // GET /points/leaderboard — top 20 by points + caller's global position;

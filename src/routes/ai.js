@@ -62,7 +62,8 @@ ${COACH_STYLE}${langDirective(lang)}`;
     const text = await ask(prompt, 170);
     res.json({ message: text });
   } catch (err) {
-    res.status(500).json({ error: 'AI unavailable', detail: err.message });
+    console.error('AI unavailable:', err.message);
+    res.status(500).json({ error: 'AI unavailable' });
   }
 });
  
@@ -83,7 +84,8 @@ No extra text, no markdown, only valid JSON.${langDirective(lang, { json: true }
     const programme = parseJSON(text);
     res.json({ programme });
   } catch (err) {
-    res.status(500).json({ error: 'Plan generation failed', detail: err.message });
+    console.error('Plan generation failed:', err.message);
+    res.status(500).json({ error: 'Plan generation failed' });
   }
 });
  
@@ -202,7 +204,8 @@ Make it specific to ${sport}. Include 3-5 drills. Fit everything within ${durati
     const plan = parseJSON(text);
     res.json({ plan });
   } catch (err) {
-    res.status(500).json({ error: 'Plan generation failed', detail: err.message });
+    console.error('Plan generation failed:', err.message);
+    res.status(500).json({ error: 'Plan generation failed' });
   }
 });
 
@@ -243,7 +246,8 @@ If there is no food in the photo, return {"items":[],"total":{"calories":0,"prot
     const result = parseJSON(replyText(msg));
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: 'Meal scan failed', detail: err.message });
+    console.error('Meal scan failed:', err.message);
+    res.status(500).json({ error: 'Meal scan failed' });
   }
 });
 
@@ -258,7 +262,8 @@ router.post('/food-text', auth, quota('food-text'), async (req, res) => {
     const raw = await ask(`${foodTextPrompt(text)}${langDirective(req.body?.lang, { json: true })}`, 400);
     res.json(parseJSON(raw));
   } catch (err) {
-    res.status(500).json({ error: 'Food estimate failed', detail: err.message });
+    console.error('Food estimate failed:', err.message);
+    res.status(500).json({ error: 'Food estimate failed' });
   }
 });
 

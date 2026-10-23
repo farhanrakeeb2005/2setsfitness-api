@@ -89,3 +89,14 @@ test('meal notes and typed foods go to the AI as quoted descriptions', () => {
   assert.match(d, /"eaten":true/);
   assert.match(foodTextPrompt('2 boiled eggs'), /"2 boiled eggs"/);
 });
+
+test('points are held to what the account age makes believable', () => {
+  const { DAILY_POINTS_CAP, pointsCap, cappedPoints } = require('../src/lib/pointsCap');
+  const now = Date.parse('2026-10-23T12:00:00Z');
+  assert.equal(pointsCap(new Date(now - 1000), now), DAILY_POINTS_CAP);          // made today: one day's worth
+  assert.equal(pointsCap(new Date(now - 10 * 864e5), now), 11 * DAILY_POINTS_CAP);
+  assert.equal(cappedPoints(579, new Date(now - 864e5), now), 579);               // a real total passes
+  assert.equal(cappedPoints(9_999_999, new Date(now - 864e5), now), 2 * DAILY_POINTS_CAP);
+  assert.equal(cappedPoints(-5, null, now), 0);
+  assert.equal(cappedPoints(500, null, now), 500);                                // no created_at: counts from now
+});

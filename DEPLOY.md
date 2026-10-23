@@ -135,13 +135,11 @@ gcloud projects add-iam-policy-binding <PROJECT_ID> --member="serviceAccount:<PR
 | `ANTHROPIC_API_KEY` | **required** (all `/ai/*` routes) | secret |
 | `DATABASE_URL` | **required** | secret |
 | `FIREBASE_PROJECT_ID` | **required** on Cloud Run: `fitness-app-5c48a` (used to check the app's Firebase sign-in tokens) | plain env var |
-| `JWT_SECRET` | optional. Only the old `/auth/*` email/Google routes sign JWTs, and the app signs in with Firebase. Set it anyway so those routes don't error. | secret |
+| `JWT_SECRET` | signs the one-click unsubscribe links in emails (`src/lib/mailer.js`); keep it set and don't change it, or links already sent stop working | secret |
 | `PORT` | set by Cloud Run (8080). Don't set it yourself. | automatic |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | optional, instead of `FIREBASE_PROJECT_ID`: a service-account key's JSON (raw or base64). Not needed, because Cloud Run's own identity plus the project id is enough. | secret |
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | local development only: path to the key file (default `./firebase-service-account.json`). Never put the key file in the image (`.dockerignore` and `.gcloudignore` exclude it). | — |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional, only for the legacy `/auth/google-code` route | env var / secret |
 | `RESEND_API_KEY` | optional: welcome emails. When unset, no email is sent. | secret |
-| `TWILIO_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE` | optional: phone OTP SMS. When unset, no SMS is sent. Older copies of `.env.example` named two of these `TWILIO_ACCOUNT_SID` and `TWILIO_PHONE_NUMBER`. The code reads the names in this row. | secrets / env vars |
 | `PG_POOL_MAX` | optional, default 3 | env var |
 | `AI_DAILY_LIMIT` | optional, default 150: AI calls one user can make in 24 hours, all `/ai/*` routes together (`src/lib/aiQuota.js`). Past it they get a 429 until older calls drop out of the 24 hours. | env var |
 | `AI_SCAN_DAILY_LIMIT` | optional, default 30: meal photo scans one user can make in 24 hours (they cost the most). | env var |
