@@ -61,6 +61,10 @@ if (process.env.K_SERVICE || process.env.TRUST_PROXY) app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(generalLimiter);
+// Firebase App Check (src/middleware/appCheck.js; APP_CHECK=monitor|enforce|off).
+// firebase-admin is started first, by the auth middleware's module
+require('./middleware/auth');
+app.use(require('./middleware/appCheck').appCheckGuard());
 app.use(cors());
 // before the global parser: a first backup can be a few MB (default 100 kB)
 app.use('/sync', express.json({ limit: '5mb' }),

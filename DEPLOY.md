@@ -145,6 +145,7 @@ gcloud projects add-iam-policy-binding <PROJECT_ID> --member="serviceAccount:<PR
 | `AI_SCAN_DAILY_LIMIT` | optional, default 30: meal photo scans one user can make in 24 hours (they cost the most). | env var |
 | `AI_MODEL` | optional, default `claude-haiku-5-5`: the Claude model every `/ai/*` route uses (`src/lib/aiModel.js`). | env var |
 | `AI_CHAT_MODEL` | optional, defaults to `AI_MODEL`: the model for the coach chat (`/ai/advice`) only, e.g. `claude-sonnet-5-5` for sharper answers at about 20x the cost per reply. | env var |
+| `APP_CHECK` | optional, default `monitor`: Firebase App Check (`src/middleware/appCheck.js`). `monitor` checks each request's `X-Firebase-AppCheck` token and logs how many are missing or invalid but lets them through; `enforce` refuses those (401); `off` skips it. Switch to `enforce` only once users have the App Check build from Google Play / the App Store and the log shows almost no missing tokens: copies installed outside Google Play fail Play Integrity. | env var |
 | `TRUST_PROXY` | optional. It's turned on automatically on Cloud Run (`K_SERVICE` is set there) so rate limits count real client IPs. | — |
 
 `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER` and `EMAIL_PASS` in `.env.example` aren't read by the code.

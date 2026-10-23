@@ -75,6 +75,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE;
 
 -- Week schedule stored on profile
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS week_schedule JSONB DEFAULT '{}';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS leaderboard_hidden BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Recovery logs
 CREATE TABLE IF NOT EXISTS recovery_logs (

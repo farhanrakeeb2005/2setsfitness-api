@@ -59,12 +59,15 @@ router.put('/', auth, async (req, res) => {
 });
 
 // GET /points/leaderboard — top 20 by points + caller's global position;
-// the caller's own row says me: true (rows don't carry user ids)
+// the caller's own row says me: true (rows don't carry user ids). Accounts
+// hidden from the leaderboard (Settings) aren't listed or counted, except
+// to themselves.
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT u.name, p.avatar_emoji, p.points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
+     WHERE NOT p.leaderboard_hidden OR p.user_id = $1
      ORDER BY p.points DESC NULLS LAST, u.id
      LIMIT 20`,
     [req.user.id]
@@ -81,7 +84,8 @@ router.get('/leaderboard', auth, async (req, res) => {
   const posRow = await pool.query(
     `SELECT COUNT(*) + 1 AS position
      FROM profiles
-     WHERE COALESCE(points, 0) > COALESCE((SELECT points FROM profiles WHERE user_id = $1), 0)`,
+     WHERE NOT leaderboard_hidden
+       AND COALESCE(points, 0) > COALESCE((SELECT points FROM profiles WHERE user_id = $1), 0)`,
     [req.user.id]
   );
   const mine = leaderboard.find((r) => r.me);

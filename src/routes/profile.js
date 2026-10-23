@@ -18,6 +18,10 @@ router.put('/', auth, async (req, res) => {
      last_workout_day=$5, avatar_emoji=$6, updated_at=NOW() WHERE user_id=$7`,
     [goal, level, units, streak, last_workout_day, avatar_emoji, req.user.id]
   );
+  // Settings → Show me on the leaderboard
+  if (typeof req.body.leaderboardHidden === 'boolean') {
+    await pool.query('UPDATE profiles SET leaderboard_hidden = $1 WHERE user_id = $2', [req.body.leaderboardHidden, req.user.id]);
+  }
   res.json({ ok: true });
 });
  
