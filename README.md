@@ -25,17 +25,7 @@ Backend REST API for **2SetsFitness** — a workout tracking app with AI-powered
 
 ## API Overview
 
-All routes except `/auth/*` and `/health` require a `Authorization: Bearer <token>` header.
-
-### Auth — `/auth`
-| Method | Route              | Description                                    |
-|--------|---------------------|------------------------------------------------|
-| POST   | `/register`          | Create an account, returns a JWT               |
-| POST   | `/login`              | Email/password login, returns a JWT            |
-| POST   | `/google`             | Sign in with a Google access token             |
-| POST   | `/google-code`        | Sign in via Google PKCE authorization code     |
-| POST   | `/send-otp`           | Send a phone verification code (SMS)           |
-| POST   | `/verify-otp`         | Verify the phone OTP code                      |
+All routes except `/health` and the email unsubscribe link require an `Authorization: Bearer <Firebase ID token>` header. Every route shares a 200 requests/min per-client limit; errors never carry internal details. (The old `/auth/*` email, Google and phone-code routes are gone: the app signs in with Firebase.)
 
 ### AI Coaching — `/ai` (rate limited: 20 req/min per IP, plus per-user daily caps: `AI_DAILY_LIMIT`, `AI_SCAN_DAILY_LIMIT`; JSON bodies up to 2 MB for meal photos)
 | Method | Route              | Description                                          |
@@ -102,10 +92,10 @@ See [`.env.example`](.env.example) for the full list. Required:
 | Variable         | Description                                  |
 |-------------------|-----------------------------------------------|
 | `DATABASE_URL`     | PostgreSQL connection string                  |
-| `JWT_SECRET`        | Long random secret for signing JWTs           |
+| `JWT_SECRET`        | Long random secret; signs the unsubscribe links in emails |
 | `ANTHROPIC_API_KEY`  | Claude API key, for all `/ai/*` endpoints     |
 
-Optional (only needed if you use these features): `TWILIO_*` (phone OTP), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (Google sign-in), `EMAIL_*` or `RESEND_API_KEY` (welcome emails).
+Optional (only needed if you use these features): `EMAIL_*` or `RESEND_API_KEY` (welcome emails).
 
 ## Project Structure
 

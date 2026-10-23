@@ -89,3 +89,39 @@ test('meal notes and typed foods go to the AI as quoted descriptions', () => {
   assert.match(d, /"eaten":true/);
   assert.match(foodTextPrompt('2 boiled eggs'), /"2 boiled eggs"/);
 });
+
+test('points are held to what the account age makes believable', () => {
+  const { DAILY_POINTS_CAP, pointsCap, cappedPoints } = require('../src/lib/pointsCap');
+  const now = Date.parse('2026-10-23T12:00:00Z');
+  assert.equal(pointsCap(new Date(now - 1000), now), DAILY_POINTS_CAP);          // made today: one day's worth
+  assert.equal(pointsCap(new Date(now - 10 * 864e5), now), 11 * DAILY_POINTS_CAP);
+  assert.equal(cappedPoints(579, new Date(now - 864e5), now), 579);               // a real total passes
+  assert.equal(cappedPoints(9_999_999, new Date(now - 864e5), now), 2 * DAILY_POINTS_CAP);
+  assert.equal(cappedPoints(-5, null, now), 0);
+  assert.equal(cappedPoints(500, null, now), 500);                                // no created_at: counts from now
+});
+
+test('App Check: monitor lets requests through, enforce refuses bad ones', async () => {
+  const { appCheckGuard, appCheckMode } = require('../src/middleware/appCheck');
+  assert.equal(appCheckMode({}), 'monitor');
+  assert.equal(appCheckMode({ APP_CHECK: 'ENFORCE' }), 'enforce');
+  assert.equal(appCheckMode({ APP_CHECK: 'nonsense' }), 'monitor');
+  const verify = async (t) => { if (t !== 'good') throw new Error('bad'); };
+  const run = async (guard, token, path = '/points') => {
+    let passed = false, status = null;
+    const req = { path, get: (h) => (h === 'X-Firebase-AppCheck' ? token : undefined) };
+    const res = { status(s) { status = s; return this; }, json() { return this; } };
+    await guard(req, res, () => { passed = true; });
+    return { passed, status };
+  };
+  const quiet = { warn() {} };
+  const monitor = appCheckGuard({ env: {}, verify, log: quiet });
+  assert.deepEqual(await run(monitor, undefined), { passed: true, status: null });
+  assert.deepEqual(await run(monitor, 'forged'), { passed: true, status: null });
+  assert.deepEqual(monitor.stats, { ok: 0, missing: 1, invalid: 1 });
+  const enforce = appCheckGuard({ env: { APP_CHECK: 'enforce' }, verify, log: quiet });
+  assert.deepEqual(await run(enforce, 'good'), { passed: true, status: null });
+  assert.deepEqual(await run(enforce, undefined), { passed: false, status: 401 });
+  assert.deepEqual(await run(enforce, 'forged'), { passed: false, status: 401 });
+  assert.deepEqual(await run(enforce, undefined, '/health'), { passed: true, status: null });
+});

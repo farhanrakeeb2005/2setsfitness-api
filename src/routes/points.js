@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
+const { cappedPoints } = require('../lib/pointsCap');
 
 // as the app's src/lib/ranks.js (BOSSES[].min, icon): keep the two in step
 const RANKS = [
@@ -49,7 +50,8 @@ router.get('/', auth, async (req, res) => {
 
 // PUT /points — { points }: the app's own total. Points are worked out on the
 // phone from its logs (local-first; the old per-log server routes are no
-// longer called), so the app reports the total for the leaderboard.
+// longer called), so the app reports the total for the leaderboard, held to
+// what the account's age makes believable (src/lib/pointsCap.js).
 const MAX_POINTS = 10_000_000;
 // Optional, for the leaderboard: avatar_emoji (a short string) or avatar_photo
 // (a small JPEG data URL), each null to clear; left out, kept as it is.
@@ -57,8 +59,11 @@ const MAX_PHOTO = 40_000;   // chars of data URL (~30 KB): a 96 px thumbnail is 
 router.put('/', auth, async (req, res) => {
   const pts = Math.round(Number(req.body?.points));
   if (!Number.isFinite(pts) || pts < 0 || pts > MAX_POINTS) return res.status(400).json({ error: 'Invalid points' });
+  // the total, capped by the account's age (pointsCap.js), and the picture
+  const { rows } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
+  const stored = cappedPoints(pts, rows[0]?.created_at);
   const b = req.body || {};
-  const sets = ['points = $1'], vals = [pts];
+  const sets = ['points = $1'], vals = [stored];
   if ('avatar_emoji' in b) {
     const e = b.avatar_emoji;
     if (e !== null && (typeof e !== 'string' || e.length > 16)) return res.status(400).json({ error: 'Invalid avatar' });
@@ -73,16 +78,19 @@ router.put('/', auth, async (req, res) => {
   }
   vals.push(req.user.id);
   await pool.query(`UPDATE profiles SET ${sets.join(', ')} WHERE user_id = $${vals.length}`, vals);
-  res.json({ points: pts, rank: getRank(pts) });
+  res.json({ points: stored, rank: getRank(stored) });
 });
 
 // GET /points/leaderboard — top 20 by points + caller's global position;
-// the caller's own row says me: true (rows don't carry user ids)
+// the caller's own row says me: true (rows don't carry user ids). Accounts
+// hidden from the leaderboard (Settings) aren't listed or counted, except
+// to themselves.
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
+     WHERE NOT p.leaderboard_hidden OR p.user_id = $1
      ORDER BY p.points DESC NULLS LAST, u.id
      LIMIT 20`,
     [req.user.id]
@@ -100,7 +108,8 @@ router.get('/leaderboard', auth, async (req, res) => {
   const posRow = await pool.query(
     `SELECT COUNT(*) + 1 AS position
      FROM profiles
-     WHERE COALESCE(points, 0) > COALESCE((SELECT points FROM profiles WHERE user_id = $1), 0)`,
+     WHERE NOT leaderboard_hidden
+       AND COALESCE(points, 0) > COALESCE((SELECT points FROM profiles WHERE user_id = $1), 0)`,
     [req.user.id]
   );
   const mine = leaderboard.find((r) => r.me);
