@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { cappedPoints } = require('../lib/pointsCap');
+const { cleanPhoto, cleanEmoji } = require('../lib/publicCard');
 
 // as the app's src/lib/ranks.js (BOSSES[].min, icon): keep the two in step
 const RANKS = [
@@ -82,12 +83,13 @@ router.put('/', auth, async (req, res) => {
 });
 
 // GET /points/leaderboard — top 20 by points + caller's global position;
-// the caller's own row says me: true (rows don't carry user ids). Accounts
+// the caller's own row says me: true. Rows carry the player's public id (for
+// GET /profile/public/:id), never the account id. Accounts
 // hidden from the leaderboard (Settings) aren't listed or counted, except
 // to themselves.
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.points, (p.user_id = $1) AS me
+    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, p.points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
      WHERE NOT p.leaderboard_hidden OR p.user_id = $1
@@ -97,6 +99,7 @@ router.get('/leaderboard', auth, async (req, res) => {
   );
   const leaderboard = rows.map((r, i) => ({
     position: i + 1,
+    id: r.public_id,
     name: r.name,
     avatarEmoji: r.avatar_emoji,
     avatarPhoto: r.avatar_photo || null,
@@ -120,3 +123,4 @@ router.get('/leaderboard', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getRank = getRank;
