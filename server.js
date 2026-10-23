@@ -41,6 +41,19 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS user_sync_updated ON user_sync (user_id, updated_at)`,
   // per-user daily AI caps count a user's calls over the last 24 h (src/lib/aiQuota.js)
   `CREATE INDEX IF NOT EXISTS ai_log_user_time ON ai_log (user_id, logged_at)`,
+  // challenges: 7-day points races between two players (src/routes/challenges.js);
+  // an account's challenges go with it
+  `CREATE TABLE IF NOT EXISTS challenges (
+    id TEXT PRIMARY KEY DEFAULT replace(gen_random_uuid()::text, '-', ''),
+    from_user TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_user TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    starts_at TIMESTAMPTZ, ends_at TIMESTAMPTZ,
+    from_start INTEGER, to_start INTEGER, from_end INTEGER, to_end INTEGER
+  )`,
+  `CREATE INDEX IF NOT EXISTS challenges_from ON challenges (from_user, status)`,
+  `CREATE INDEX IF NOT EXISTS challenges_to ON challenges (to_user, status)`,
 ];
 
 async function runMigrations() {

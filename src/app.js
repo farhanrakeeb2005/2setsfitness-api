@@ -51,6 +51,7 @@ const pointsRoutes          = require('./routes/points');
 const bodyRoutes            = require('./routes/body');
 const accountRoutes         = require('./routes/account');
 const emailRoutes           = require('./routes/email');
+const challengeRoutes       = require('./routes/challenges');
 const { createSyncRouter }  = require('./routes/sync');
 
 const app = express();
@@ -76,6 +77,7 @@ const jsonAI = express.json({ limit: '2mb' });
 app.use((req, res, next) => (req.path.startsWith('/ai/') ? jsonAI : jsonSmall)(req, res, next));
 
 app.use('/profile',          profileRoutes);
+app.use('/challenges',       challengeRoutes);
 app.use('/routines',         routinesRoutes);
 app.use('/history',          historyRoutes);
 app.use('/leaderboard',      leaderboardRoutes);
