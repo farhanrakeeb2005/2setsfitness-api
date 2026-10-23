@@ -10,6 +10,13 @@ const MIGRATIONS = [
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS week_schedule JSONB`,
   // Settings → Show me on the leaderboard (off: the account isn't listed to others)
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS leaderboard_hidden BOOLEAN NOT NULL DEFAULT FALSE`,
+  // the leaderboard picture beside the name (a small thumbnail data URL)
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_photo TEXT`,
+  // public player profiles (GET /profile/public/:id): an opaque id for each
+  // player (never the account id) and the card the app sends (publicCard.js)
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_id TEXT DEFAULT replace(gen_random_uuid()::text, '-', '')`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS profiles_public_id ON profiles (public_id)`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_card JSONB`,
   // update emails: on by default, one-click off from the email footer (src/routes/email.js)
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_updates BOOLEAN NOT NULL DEFAULT TRUE`,
   // Body weight tracking table

@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { cappedPoints } = require('../lib/pointsCap');
+const { cleanPhoto, cleanEmoji } = require('../lib/publicCard');
 
 const RANKS = [
   { name: 'Bronze',   min: 0,     icon: '🥉' },
@@ -55,16 +56,23 @@ router.put('/', auth, async (req, res) => {
   const { rows } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
   const stored = cappedPoints(pts, rows[0]?.created_at);
   await pool.query('UPDATE profiles SET points = $1 WHERE user_id = $2', [stored, req.user.id]);
+  // the picture beside the name: { avatar_emoji, avatar_photo } (a small
+  // thumbnail data URL), sent together; both absent leaves them as they are
+  if ('avatar_emoji' in (req.body || {}) || 'avatar_photo' in (req.body || {})) {
+    await pool.query('UPDATE profiles SET avatar_emoji = $1, avatar_photo = $2 WHERE user_id = $3',
+      [cleanEmoji(req.body.avatar_emoji), cleanPhoto(req.body.avatar_photo), req.user.id]);
+  }
   res.json({ points: stored, rank: getRank(stored) });
 });
 
 // GET /points/leaderboard — top 20 by points + caller's global position;
-// the caller's own row says me: true (rows don't carry user ids). Accounts
+// the caller's own row says me: true. Rows carry the player's public id (for
+// GET /profile/public/:id), never the account id. Accounts
 // hidden from the leaderboard (Settings) aren't listed or counted, except
 // to themselves.
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.name, p.avatar_emoji, p.points, (p.user_id = $1) AS me
+    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, p.points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
      WHERE NOT p.leaderboard_hidden OR p.user_id = $1
@@ -74,8 +82,10 @@ router.get('/leaderboard', auth, async (req, res) => {
   );
   const leaderboard = rows.map((r, i) => ({
     position: i + 1,
+    id: r.public_id,
     name: r.name,
     avatarEmoji: r.avatar_emoji,
+    avatarPhoto: r.avatar_photo || null,
     points: r.points ?? 0,
     rank: getRank(r.points ?? 0),
     me: !!r.me,
@@ -96,3 +106,4 @@ router.get('/leaderboard', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getRank = getRank;

@@ -42,11 +42,11 @@ All routes except `/health` and the email unsubscribe link require an `Authoriza
 ### Data Resources
 | Resource            | Base Route            | Methods              |
 |----------------------|------------------------|------------------------|
-| Profile               | `/profile`               | GET, PUT                |
+| Profile               | `/profile`               | GET, PUT; PUT `/card` (public card), GET `/public/:id` (a player's public profile) |
 | Routines               | `/routines`               | GET, POST, PUT `/:id`, DELETE `/:id` |
 | Workout History         | `/history`                | GET, POST, DELETE `/:id` |
 | Leaderboard             | `/leaderboard`            | GET, POST `/submit`      |
-| Points                  | `/points`                 | GET, PUT (the app's own total), GET `/leaderboard` |
+| Points                  | `/points`                 | GET, PUT (the app's own total and leaderboard picture), GET `/leaderboard` (rows carry public ids) |
 | Personal Records         | `/personal-records`        | GET, PUT                |
 | Form Scores              | `/form-scores`             | GET, POST                |
 | Body Weight              | `/body`                    | GET, POST                |
