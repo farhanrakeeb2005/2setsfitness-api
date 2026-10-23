@@ -5,6 +5,8 @@ const PORT = process.env.PORT || 3000;
 const MIGRATIONS = [
   // Columns added after initial schema.sql deploy
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS points INT DEFAULT 0`,
+  // the leaderboard picture: a small JPEG data URL from the app (PUT /points)
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_photo TEXT`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT false`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS week_schedule JSONB`,

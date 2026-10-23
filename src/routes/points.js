@@ -2,13 +2,17 @@ const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
 
+// as the app's src/lib/ranks.js (BOSSES[].min, icon): keep the two in step
 const RANKS = [
-  { name: 'Bronze',   min: 0,     icon: '🥉' },
-  { name: 'Silver',   min: 500,   icon: '🥈' },
-  { name: 'Gold',     min: 2000,  icon: '🥇' },
-  { name: 'Platinum', min: 5000,  icon: '💎' },
-  { name: 'Diamond',  min: 10000, icon: '💠' },
-  { name: 'Elite',    min: 25000, icon: '👑' },
+  { name: 'Bronze',   min: 0,      icon: '⛺' },
+  { name: 'Silver',   min: 1500,   icon: '🧊' },
+  { name: 'Gold',     min: 5000,   icon: '🏔️' },
+  { name: 'Platinum', min: 12000,  icon: '🌨️' },
+  { name: 'Diamond',  min: 25000,  icon: '💀' },
+  { name: 'Elite',    min: 45000,  icon: '⚡' },
+  { name: 'Legend',   min: 75000,  icon: '🌪️' },
+  { name: 'Mythic',   min: 120000, icon: '☄️' },
+  { name: 'Immortal', min: 200000, icon: '♾️' },
 ];
 
 function getRank(points) {
@@ -29,7 +33,7 @@ function getRank(points) {
     ...RANKS[0],
     nextRank: RANKS[1].name,
     nextRankPts: RANKS[1].min,
-    progress: Math.round((points / 500) * 100),
+    progress: Math.round((points / RANKS[1].min) * 100),
   };
 }
 
@@ -47,10 +51,28 @@ router.get('/', auth, async (req, res) => {
 // phone from its logs (local-first; the old per-log server routes are no
 // longer called), so the app reports the total for the leaderboard.
 const MAX_POINTS = 10_000_000;
+// Optional, for the leaderboard: avatar_emoji (a short string) or avatar_photo
+// (a small JPEG data URL), each null to clear; left out, kept as it is.
+const MAX_PHOTO = 40_000;   // chars of data URL (~30 KB): a 96 px thumbnail is ~5 KB
 router.put('/', auth, async (req, res) => {
   const pts = Math.round(Number(req.body?.points));
   if (!Number.isFinite(pts) || pts < 0 || pts > MAX_POINTS) return res.status(400).json({ error: 'Invalid points' });
-  await pool.query('UPDATE profiles SET points = $1 WHERE user_id = $2', [pts, req.user.id]);
+  const b = req.body || {};
+  const sets = ['points = $1'], vals = [pts];
+  if ('avatar_emoji' in b) {
+    const e = b.avatar_emoji;
+    if (e !== null && (typeof e !== 'string' || e.length > 16)) return res.status(400).json({ error: 'Invalid avatar' });
+    vals.push(e); sets.push(`avatar_emoji = $${vals.length}`);
+  }
+  if ('avatar_photo' in b) {
+    const ph = b.avatar_photo;
+    if (ph !== null && (typeof ph !== 'string' || ph.length > MAX_PHOTO || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(ph))) {
+      return res.status(400).json({ error: 'Invalid photo' });
+    }
+    vals.push(ph); sets.push(`avatar_photo = $${vals.length}`);
+  }
+  vals.push(req.user.id);
+  await pool.query(`UPDATE profiles SET ${sets.join(', ')} WHERE user_id = $${vals.length}`, vals);
   res.json({ points: pts, rank: getRank(pts) });
 });
 
@@ -58,7 +80,7 @@ router.put('/', auth, async (req, res) => {
 // the caller's own row says me: true (rows don't carry user ids)
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.name, p.avatar_emoji, p.points, (p.user_id = $1) AS me
+    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
      ORDER BY p.points DESC NULLS LAST, u.id
@@ -69,6 +91,7 @@ router.get('/leaderboard', auth, async (req, res) => {
     position: i + 1,
     name: r.name,
     avatarEmoji: r.avatar_emoji,
+    avatarPhoto: r.avatar_photo || null,
     points: r.points ?? 0,
     rank: getRank(r.points ?? 0),
     me: !!r.me,
