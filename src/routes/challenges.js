@@ -14,6 +14,9 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
+const { notifyUser } = require('../lib/push');
+
+const nameOf = async (userId) => (await pool.query('SELECT name FROM users WHERE id = $1', [userId])).rows[0]?.name || '';
 
 const DAYS = 7;
 const MAX_OPEN_SENT = 5;            // pending or running challenges one player has sent
@@ -50,6 +53,8 @@ router.post('/', auth, async (req, res) => {
   const { rows: [c] } = await pool.query(
     'INSERT INTO challenges (from_user, to_user) VALUES ($1, $2) RETURNING id', [req.user.id, target.user_id]);
   res.status(201).json({ id: c.id, status: 'pending' });
+  // a notification to accept it (after the reply: it never holds the request up)
+  notifyUser(target.user_id, 'challenged', { name: await nameOf(req.user.id), data: { challengeId: c.id } });
 });
 
 router.get('/', auth, async (req, res) => {
@@ -101,6 +106,11 @@ router.post('/:id/respond', auth, async (req, res) => {
       `UPDATE challenges SET status = 'declined' WHERE id = $1 AND to_user = $2 AND status = 'pending'`, [id, req.user.id]);
   if (!rowCount) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true, status: accept ? 'accepted' : 'declined' });
+  // the challenger hears the race is on
+  if (accept) {
+    const { rows: [c] } = await pool.query('SELECT from_user FROM challenges WHERE id = $1', [id]);
+    if (c) notifyUser(c.from_user, 'accepted', { name: await nameOf(req.user.id), data: { challengeId: id } });
+  }
 });
 
 router.post('/:id/cancel', auth, async (req, res) => {

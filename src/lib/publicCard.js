@@ -28,6 +28,8 @@ function cleanAvatar(a) {
   if (a.legs === 'shorts') out.legs = 'shorts';
   // a female player's choice to wear the hijab (off unless chosen)
   if (a.hijabOn === true) out.hijabOn = true;
+  // the still pose on their profile
+  if (['flex', 'crossed', 'hips', 'victory', 'wave'].includes(a.pose)) out.pose = a.pose;
   return Object.keys(out).length ? out : null;
 }
 

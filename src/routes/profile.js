@@ -37,6 +37,26 @@ router.put('/card', auth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// PUT /profile/push-token — { token, lang }: this phone's FCM token, for
+// challenge notifications (lib/push.js). A token moves to whoever signs in
+// on that phone. DELETE (same body) forgets it, on sign-out.
+const LANGS = /^[a-zA-Z]{2}(-[A-Za-z]{2})?$/;
+router.put('/push-token', auth, async (req, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+  if (!token || token.length > 4096) return res.status(400).json({ error: 'Invalid token' });
+  const lang = typeof req.body?.lang === 'string' && LANGS.test(req.body.lang) ? req.body.lang : null;
+  await pool.query(
+    `INSERT INTO push_tokens (token, user_id, lang) VALUES ($1, $2, $3)
+     ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, lang = EXCLUDED.lang, updated_at = now()`,
+    [token, req.user.id, lang]);
+  res.json({ ok: true });
+});
+router.delete('/push-token', auth, async (req, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+  if (token) await pool.query('DELETE FROM push_tokens WHERE token = $1 AND user_id = $2', [token, req.user.id]);
+  res.json({ ok: true });
+});
+
 // GET /profile/public/:id — a player's public profile, by the public id the
 // leaderboard rows carry. Players hidden from the leaderboard (Settings) are
 // not shown, except to themselves.

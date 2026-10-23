@@ -54,6 +54,14 @@ const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS challenges_from ON challenges (from_user, status)`,
   `CREATE INDEX IF NOT EXISTS challenges_to ON challenges (to_user, status)`,
+  // each phone's push token (lib/push.js), with the app's language; they go with the account
+  `CREATE TABLE IF NOT EXISTS push_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    lang TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS push_tokens_user ON push_tokens (user_id)`,
 ];
 
 async function runMigrations() {
