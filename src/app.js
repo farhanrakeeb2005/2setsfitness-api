@@ -61,6 +61,11 @@ const app = express();
 // Behind Cloud Run's (or Railway's) proxy every request comes from the proxy:
 // trust its X-Forwarded-For so the rate limits count real clients.
 if (process.env.K_SERVICE || process.env.TRUST_PROXY) app.set('trust proxy', 1);
+// Every reply is live data for one signed-in user: no ETags, no caching. With
+// ETags the phone's HTTP layer answered GET /challenges from its own cache
+// (304), so a race's progress never moved on screen.
+app.set('etag', false);
+app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
 app.use(helmet());
 app.use(generalLimiter);
