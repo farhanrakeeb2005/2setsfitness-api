@@ -67,6 +67,8 @@ function cleanCard(c) {
     main: c.main === 'gym' || c.main === 'sport' ? c.main : null,
     goal: text(c.goal, 24),
     level: text(c.level, 24),
+    // body weight in kg, only when the player chose to show it (app Settings)
+    weightKg: Number(c.weightKg) >= 25 && Number(c.weightKg) <= 300 ? Math.round(Number(c.weightKg) * 10) / 10 : null,
   };
 }
 

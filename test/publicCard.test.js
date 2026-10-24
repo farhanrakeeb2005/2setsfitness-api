@@ -10,14 +10,14 @@ test('keeps the known fields, drops the rest', () => {
     workouts: 42.4, sportSessions: -3, streak: 5, bestStreak: 12, records: 4,
     topSports: [{ name: 'Football', emoji: '⚽', count: 7, minutes: 600 }],
     topExercises: [{ name: 'Bench Press', count: 20 }],
-    main: 'gym', goal: 'muscle', level: 'beginner', secret: 'x',
+    main: 'gym', goal: 'muscle', level: 'beginner', secret: 'x', weightKg: 78.44,
   });
   assert.deepEqual(c, {
     v: 1, gender: 'male', avatar: { skinTone: '#8D5524', hair3d: 'afro01', legs: 'shorts' },
     workouts: 42, sportSessions: 0, sportMinutes: 0, streak: 5, bestStreak: 12, records: 4,
     topSports: [{ name: 'Football', count: 7, emoji: '⚽', minutes: 600 }],
     topExercises: [{ name: 'Bench Press', count: 20 }],
-    main: 'gym', goal: 'muscle', level: 'beginner',
+    main: 'gym', goal: 'muscle', level: 'beginner', weightKg: 78.4,
   });
 });
 
