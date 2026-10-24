@@ -9,7 +9,7 @@
 //   DELETE /friends/:id           remove a friend, decline theirs, or cancel mine
 //
 // A row (user_id -> friend_id) is a request until the other side's row
-// exists too; two rows mean friends. Blocked players (routes/snaps.js) can't
+// exists too; two rows mean friends. Blocked players (routes/blocks.js) can't
 // ask. Players are named by public id, never the account id.
 const router = require('express').Router();
 const pool   = require('../db');

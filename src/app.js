@@ -52,7 +52,7 @@ const bodyRoutes            = require('./routes/body');
 const accountRoutes         = require('./routes/account');
 const emailRoutes           = require('./routes/email');
 const challengeRoutes       = require('./routes/challenges');
-const snapRoutes            = require('./routes/snaps');
+const blockRoutes           = require('./routes/blocks');
 const friendRoutes          = require('./routes/friends');
 const { createSyncRouter }  = require('./routes/sync');
 
@@ -81,13 +81,11 @@ app.use('/sync', express.json({ limit: '5mb' }),
 // photo arrives as base64 (the app shrinks it first; 2 MB leaves headroom)
 const jsonSmall = express.json();
 const jsonAI = express.json({ limit: '2mb' });
-// (a proof snap is a ~500 KB JPEG as base64)
-const jsonSnap = express.json({ limit: '1mb' });
-app.use((req, res, next) => (req.path.startsWith('/ai/') ? jsonAI : req.path === '/snaps' ? jsonSnap : jsonSmall)(req, res, next));
+app.use((req, res, next) => (req.path.startsWith('/ai/') ? jsonAI : jsonSmall)(req, res, next));
 
 app.use('/profile',          profileRoutes);
 app.use('/challenges',       challengeRoutes);
-app.use('/snaps',            snapRoutes);
+app.use('/blocks',           blockRoutes);
 app.use('/friends',          friendRoutes);
 app.use('/routines',         routinesRoutes);
 app.use('/history',          historyRoutes);

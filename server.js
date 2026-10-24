@@ -69,34 +69,16 @@ const MIGRATIONS = [
   // the points a player's challenges have won (+) or lost (-), on top of the
   // total the app reports (the leaderboard shows the two together, never below 0)
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS challenge_pts INTEGER NOT NULL DEFAULT 0`,
-  // proof snaps (src/routes/snaps.js): the photo is dropped once seen or
-  // after 24 h; rows go after 7 days (reported ones are kept 30 for review)
-  `CREATE TABLE IF NOT EXISTS snaps (
-    id TEXT PRIMARY KEY DEFAULT replace(gen_random_uuid()::text, '-', ''),
-    from_user TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    to_user TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    challenge_id TEXT,
-    caption TEXT,
-    image BYTEA,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    opened_at TIMESTAMPTZ,
-    screenshot BOOLEAN NOT NULL DEFAULT FALSE,
-    reported BOOLEAN NOT NULL DEFAULT FALSE,
-    report_reason TEXT
-  )`,
-  `CREATE INDEX IF NOT EXISTS snaps_to ON snaps (to_user, created_at)`,
-  // where the sender stood in the race when they sent it (the snap's sticker)
-  `ALTER TABLE snaps ADD COLUMN IF NOT EXISTS sticker JSONB`,
-  `CREATE INDEX IF NOT EXISTS snaps_from ON snaps (from_user, created_at)`,
-  // who has blocked whom (snaps and challenges)
+  // proof snaps were taken out (2026-10-24): their table goes, with any photo in it
+  `DROP TABLE IF EXISTS snaps`,
+  `ALTER TABLE profiles DROP COLUMN IF EXISTS snaps_off`,
+  // who has blocked whom (src/routes/blocks.js: challenges and friend requests)
   `CREATE TABLE IF NOT EXISTS blocks (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     blocked_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (user_id, blocked_id)
   )`,
-  // Settings -> receive proof snaps (off: nobody can send this player one)
-  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS snaps_off BOOLEAN NOT NULL DEFAULT FALSE`,
   // friends (src/routes/friends.js): a row each way once accepted; one row is a request
   `CREATE TABLE IF NOT EXISTS friends (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
