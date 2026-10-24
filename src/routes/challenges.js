@@ -125,6 +125,10 @@ router.post('/', auth, async (req, res) => {
     `SELECT p.user_id, p.leaderboard_hidden, u.created_at FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.public_id = $1`, [to]);
   if (!target || target.leaderboard_hidden) return res.status(404).json({ error: 'Not found' });
   if (target.user_id === req.user.id) return res.status(400).json({ error: 'You can\'t challenge yourself' });
+  // (either has blocked the other: routes/snaps.js)
+  const { rowCount: blocked } = await pool.query(
+    'SELECT 1 FROM blocks WHERE (user_id = $1 AND blocked_id = $2) OR (user_id = $2 AND blocked_id = $1) LIMIT 1', [req.user.id, target.user_id]);
+  if (blocked) return res.status(404).json({ error: 'Not found' });
   if (spec.stake > 0) {
     const { rows: [me] } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
     if (!oldEnough(me?.created_at) || !oldEnough(target.created_at)) {

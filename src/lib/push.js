@@ -62,6 +62,60 @@ const T = {
     bn: ['চ্যালেঞ্জ গৃহীত', '{name} গ্রহণ করেছে। চ্যালেঞ্জ এখনই শুরু।'],
     so: ['Loolanka waa la aqbalay', '{name} ayaa aqbalay. Loolanku hadda ayuu bilaabmayaa.'],
   },
+  snap: {
+    en: ['New proof snap', '{name} sent you a proof snap. It disappears once you see it.'],
+    ar: ['صورة إثبات جديدة', 'أرسل لك {name} صورة إثبات. تختفي بعد أن تراها.'],
+    ur: ['نئی پروف اسنیپ', '{name} نے آپ کو پروف اسنیپ بھیجی۔ دیکھنے کے بعد غائب ہو جائے گی۔'],
+    es: ['Nueva foto de prueba', '{name} te ha enviado una foto de prueba. Desaparece cuando la ves.'],
+    fr: ['Nouvelle photo preuve', '{name} vous a envoyé une photo preuve. Elle disparaît une fois vue.'],
+    pt: ['Nova foto de prova', '{name} enviou-lhe uma foto de prova. Desaparece depois de a ver.'],
+    tr: ['Yeni kanıt fotoğrafı', '{name} sana bir kanıt fotoğrafı gönderdi. Gördükten sonra kaybolur.'],
+    de: ['Neuer Beweis-Snap', '{name} hat dir einen Beweis-Snap geschickt. Er verschwindet, sobald du ihn siehst.'],
+    it: ['Nuova foto prova', '{name} ti ha mandato una foto prova. Sparisce dopo che la vedi.'],
+    nl: ['Nieuwe bewijs-snap', '{name} stuurde je een bewijs-snap. Hij verdwijnt zodra je hem ziet.'],
+    ru: ['Новое фото-доказательство', '{name} прислал(а) вам фото-доказательство. Оно исчезнет после просмотра.'],
+    hi: ['नया प्रूफ़ स्नैप', '{name} ने आपको प्रूफ़ स्नैप भेजा। देखने के बाद गायब हो जाएगा।'],
+    ja: ['新しいプルーフスナップ', '{name}さんからプルーフスナップが届きました。見ると消えます。'],
+    kr: ['새 인증 스냅', '{name}님이 인증 스냅을 보냈어요. 보고 나면 사라져요.'],
+    vi: ['Ảnh chứng minh mới', '{name} gửi bạn một ảnh chứng minh. Ảnh biến mất sau khi xem.'],
+    th: ['รูปพิสูจน์ใหม่', '{name} ส่งรูปพิสูจน์ให้คุณ รูปจะหายไปเมื่อดูแล้ว'],
+    sw: ['Picha mpya ya ushahidi', '{name} amekutumia picha ya ushahidi. Inapotea ukishaiona.'],
+    'zh-CN': ['新的打卡快照', '{name} 给你发了一张打卡快照，看过就会消失。'],
+    ms: ['Foto bukti baharu', '{name} menghantar foto bukti kepada anda. Ia hilang selepas dilihat.'],
+    id: ['Foto bukti baru', '{name} mengirimimu foto bukti. Foto hilang setelah dilihat.'],
+    tl: ['Bagong proof snap', 'Pinadalhan ka ni {name} ng proof snap. Mawawala ito pagkakita mo.'],
+    pl: ['Nowy snap-dowód', '{name} wysyła ci snap-dowód. Zniknie, gdy go obejrzysz.'],
+    fa: ['عکس اثبات جدید', '{name} برایتان عکس اثبات فرستاد. بعد از دیدن ناپدید می‌شود.'],
+    bn: ['নতুন প্রুফ স্ন্যাপ', '{name} আপনাকে একটি প্রুফ স্ন্যাপ পাঠিয়েছে। দেখার পর মুছে যাবে।'],
+    so: ['Sawir caddayn cusub', '{name} ayaa kuu soo diray sawir caddayn. Wuu baaba’aa markaad aragto.'],
+  },
+  screenshot: {
+    en: ['Screenshot', '{name} tried to screenshot your snap.'],
+    ar: ['لقطة شاشة', 'حاول {name} التقاط صورة شاشة لصورتك.'],
+    ur: ['اسکرین شاٹ', '{name} نے آپ کی اسنیپ کا اسکرین شاٹ لینے کی کوشش کی۔'],
+    es: ['Captura de pantalla', '{name} intentó hacer una captura de tu foto.'],
+    fr: ['Capture d’écran', '{name} a tenté de faire une capture de votre photo.'],
+    pt: ['Captura de ecrã', '{name} tentou fazer uma captura da sua foto.'],
+    tr: ['Ekran görüntüsü', '{name} fotoğrafının ekran görüntüsünü almaya çalıştı.'],
+    de: ['Screenshot', '{name} hat versucht, deinen Snap zu screenshotten.'],
+    it: ['Screenshot', '{name} ha provato a fare uno screenshot della tua foto.'],
+    nl: ['Screenshot', '{name} probeerde een screenshot van je snap te maken.'],
+    ru: ['Скриншот', '{name} пытался(ась) сделать скриншот вашего фото.'],
+    hi: ['स्क्रीनशॉट', '{name} ने आपके स्नैप का स्क्रीनशॉट लेने की कोशिश की।'],
+    ja: ['スクリーンショット', '{name}さんがあなたのスナップのスクリーンショットを撮ろうとしました。'],
+    kr: ['스크린샷', '{name}님이 내 스냅을 캡처하려 했어요.'],
+    vi: ['Chụp màn hình', '{name} đã cố chụp màn hình ảnh của bạn.'],
+    th: ['แคปหน้าจอ', '{name} พยายามแคปหน้าจอรูปของคุณ'],
+    sw: ['Picha ya skrini', '{name} alijaribu kupiga picha ya skrini ya picha yako.'],
+    'zh-CN': ['截屏', '{name} 试图截屏你的快照。'],
+    ms: ['Tangkapan skrin', '{name} cuba menangkap skrin foto anda.'],
+    id: ['Tangkapan layar', '{name} mencoba menangkap layar fotomu.'],
+    tl: ['Screenshot', 'Sinubukan ni {name} na i-screenshot ang snap mo.'],
+    pl: ['Zrzut ekranu', '{name} próbował(a) zrobić zrzut twojego snapa.'],
+    fa: ['اسکرین‌شات', '{name} سعی کرد از عکس شما اسکرین‌شات بگیرد.'],
+    bn: ['স্ক্রিনশট', '{name} আপনার স্ন্যাপের স্ক্রিনশট নেওয়ার চেষ্টা করেছে।'],
+    so: ['Sawir shaashad', '{name} wuxuu isku dayay inuu sawir shaashadeed ka qaado sawirkaaga.'],
+  },
 };
 
 function message(kind, lang, name) {
@@ -70,7 +124,7 @@ function message(kind, lang, name) {
   return { title, body: body.replace('{name}', name || '') };
 }
 
-// kind: 'challenged' | 'accepted'; data: small strings for the app (where to open)
+// kind: 'challenged' | 'accepted' | 'snap' | 'screenshot'; data: small strings for the app (where to open)
 async function notifyUser(userId, kind, { name, data = {} } = {}) {
   try {
     const { rows } = await pool.query('SELECT token, lang FROM push_tokens WHERE user_id = $1', [userId]);
