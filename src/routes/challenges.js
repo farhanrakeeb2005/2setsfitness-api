@@ -38,12 +38,34 @@ const oldEnough = (createdAt) => !createdAt || Date.now() - new Date(createdAt).
 
 const specOf = (c) => ({ kind: c.kind || 'points', days: c.days || 7, stake: c.stake || 0, target: c.target, routine: c.routine });
 
-// one player's backed-up workouts and sports (the /sync collections)
-async function logsOf(userId) {
+// One player's workouts and sports logged since `since` (ms). The app backs
+// up to Firestore (users/{uid}/history|sports/{key}, each { updatedAt, json },
+// lib/firestoreSync.js in the app); anything logged during a race was written
+// after it began, so only docs updated since then are read. Older app builds
+// backed up to /sync (user_sync): those are read too, and the two merged by id.
+async function logsOf(userId, since = 0) {
+  const out = { history: [], sports: [] };
+  const seen = { history: new Set(), sports: new Set() };
+  const add = (name, it) => {
+    if (!it || typeof it !== 'object') return;
+    const key = it.id != null ? String(it.id) : `${it.ts}`;
+    if (seen[name].has(key)) return;
+    seen[name].add(key); out[name].push(it);
+  };
+  try {
+    const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+    const db = getFirestore();
+    await Promise.all(['history', 'sports'].map(async (name) => {
+      const snap = await db.collection(`users/${userId}/${name}`)
+        .where('updatedAt', '>=', Timestamp.fromMillis(Math.max(0, since - 60_000))).get();
+      snap.forEach((d) => { try { add(name, JSON.parse(d.get('json'))); } catch { /* a tombstone or bad doc */ } });
+    }));
+  } catch (e) {
+    console.error('challenge logs (firestore):', e.message);
+  }
   const { rows } = await pool.query(
     `SELECT collection, data FROM user_sync WHERE user_id = $1 AND collection IN ('history', 'sports')`, [userId]);
-  const out = { history: [], sports: [] };
-  for (const r of rows) if (Array.isArray(r.data?.items)) out[r.collection] = r.data.items;
+  for (const r of rows) if (Array.isArray(r.data?.items)) r.data.items.forEach((it) => add(r.collection, it));
   return out;
 }
 
@@ -51,7 +73,7 @@ async function logsOf(userId) {
 async function raceProgress(c) {
   const spec = specOf(c);
   const start = new Date(c.starts_at).getTime(), end = new Date(c.ends_at).getTime();
-  const [a, b] = await Promise.all([logsOf(c.from_user), logsOf(c.to_user)]);
+  const [a, b] = await Promise.all([logsOf(c.from_user, start), logsOf(c.to_user, start)]);
   return { from: R.progress(spec, a, start, end), to: R.progress(spec, b, start, end) };
 }
 

@@ -168,6 +168,9 @@ router.post('/blocks', auth, async (req, res) => {
   const { rows: [t] } = await pool.query('SELECT user_id FROM profiles WHERE public_id = $1', [id]);
   if (!t || t.user_id === req.user.id) return res.status(404).json({ error: 'Not found' });
   await pool.query('INSERT INTO blocks (user_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, t.user_id]);
+  // no longer friends either
+  await pool.query(
+    'DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)', [req.user.id, t.user_id]);
   // their challenges with each other that haven't started end here
   await pool.query(
     `UPDATE challenges SET status = 'cancelled' WHERE status = 'pending'

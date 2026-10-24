@@ -65,7 +65,9 @@ router.get('/public/:id', auth, async (req, res) => {
   if (!/^[0-9a-f]{32}$/.test(id)) return res.status(404).json({ error: 'Not found' });
   const { rows } = await pool.query(
     `SELECT u.name, u.created_at, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, p.avatar_emoji, p.avatar_photo, p.public_card, p.leaderboard_hidden,
-            (p.user_id = $2) AS me
+            (p.user_id = $2) AS me,
+            EXISTS (SELECT 1 FROM friends f WHERE f.user_id = $2 AND f.friend_id = p.user_id) AS asked,
+            EXISTS (SELECT 1 FROM friends f WHERE f.user_id = p.user_id AND f.friend_id = $2) AS asked_me
      FROM profiles p JOIN users u ON u.id = p.user_id
      WHERE p.public_id = $1`,
     [id, req.user.id]
@@ -88,6 +90,8 @@ router.get('/public/:id', auth, async (req, res) => {
     joined: r.created_at,
     card: r.public_card || null,
     me: !!r.me,
+    // you and them (routes/friends.js): none | requested | incoming | friends
+    friend: r.asked && r.asked_me ? 'friends' : r.asked ? 'requested' : r.asked_me ? 'incoming' : 'none',
   });
 });
 

@@ -95,6 +95,17 @@ const MIGRATIONS = [
   )`,
   // Settings -> receive proof snaps (off: nobody can send this player one)
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS snaps_off BOOLEAN NOT NULL DEFAULT FALSE`,
+  // friends (src/routes/friends.js): a row each way once accepted; one row is a request
+  `CREATE TABLE IF NOT EXISTS friends (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    friend_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, friend_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS friends_friend ON friends (friend_id)`,
+  // the short code a player shares to be added (shown as 2S-XXXXXX)
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS friend_code TEXT DEFAULT upper(substr(md5(random()::text || clock_timestamp()::text), 1, 6))`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS profiles_friend_code ON profiles (friend_code)`,
   // each phone's push token (lib/push.js), with the app's language; they go with the account
   `CREATE TABLE IF NOT EXISTS push_tokens (
     token TEXT PRIMARY KEY,

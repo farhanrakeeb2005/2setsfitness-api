@@ -53,6 +53,7 @@ const accountRoutes         = require('./routes/account');
 const emailRoutes           = require('./routes/email');
 const challengeRoutes       = require('./routes/challenges');
 const snapRoutes            = require('./routes/snaps');
+const friendRoutes          = require('./routes/friends');
 const { createSyncRouter }  = require('./routes/sync');
 
 const app = express();
@@ -82,6 +83,7 @@ app.use((req, res, next) => (req.path.startsWith('/ai/') ? jsonAI : req.path ===
 app.use('/profile',          profileRoutes);
 app.use('/challenges',       challengeRoutes);
 app.use('/snaps',            snapRoutes);
+app.use('/friends',          friendRoutes);
 app.use('/routines',         routinesRoutes);
 app.use('/history',          historyRoutes);
 app.use('/leaderboard',      leaderboardRoutes);
