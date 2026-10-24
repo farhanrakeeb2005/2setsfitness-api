@@ -85,6 +85,8 @@ const MIGRATIONS = [
     report_reason TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS snaps_to ON snaps (to_user, created_at)`,
+  // where the sender stood in the race when they sent it (the snap's sticker)
+  `ALTER TABLE snaps ADD COLUMN IF NOT EXISTS sticker JSONB`,
   `CREATE INDEX IF NOT EXISTS snaps_from ON snaps (from_user, created_at)`,
   // who has blocked whom (snaps and challenges)
   `CREATE TABLE IF NOT EXISTS blocks (

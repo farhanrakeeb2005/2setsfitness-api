@@ -21,6 +21,7 @@ const auth   = require('../middleware/auth');
 const { notifyUser } = require('../lib/push');
 const { checkSnap } = require('../lib/snapCheck');
 const mailer = require('../lib/mailer');
+const { standing } = require('./challenges');
 
 const PUBLIC_ID = /^[0-9a-f]{32}$/;
 const SNAP_ID = /^[0-9a-f]{32}$/;
@@ -58,7 +59,7 @@ router.post('/', auth, async (req, res) => {
   if (target.snaps_off) return res.status(403).json({ error: 'off', message: 'They don\'t take snaps' });
   if (await blockedBetween(req.user.id, target.user_id)) return res.status(403).json({ error: 'blocked', message: 'You can\'t send them snaps' });
   const { rows: [ch] } = await pool.query(
-    `SELECT id FROM challenges
+    `SELECT * FROM challenges
      WHERE ((from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1))
        AND (status IN ('pending', 'accepted') OR (status = 'done' AND ends_at > now() - interval '14 days'))
      ORDER BY created_at DESC LIMIT 1`, [req.user.id, target.user_id]);
@@ -75,9 +76,11 @@ router.post('/', auth, async (req, res) => {
   }
   if (!check.ok) return res.status(422).json({ error: 'rejected', reason: check.reason, message: 'This photo can\'t be sent' });
 
+  // the sticker: where the sender stands in the race, from their own logs
+  const sticker = await standing(ch, req.user.id).catch(() => null);
   const { rows: [s] } = await pool.query(
-    `INSERT INTO snaps (from_user, to_user, challenge_id, caption, image) VALUES ($1, $2, $3, $4, decode($5, 'base64')) RETURNING id`,
-    [req.user.id, target.user_id, ch.id, caption || null, image]);
+    `INSERT INTO snaps (from_user, to_user, challenge_id, caption, image, sticker) VALUES ($1, $2, $3, $4, decode($5, 'base64'), $6) RETURNING id`,
+    [req.user.id, target.user_id, ch.id, caption || null, image, sticker && JSON.stringify(sticker)]);
   res.status(201).json({ id: s.id });
   notifyUser(target.user_id, 'snap', { name: await nameOf(req.user.id), data: { snapId: s.id } });
 });
@@ -116,9 +119,9 @@ router.post('/:id/open', auth, async (req, res) => {
   const { rows: [s] } = await pool.query(
     `UPDATE snaps SET opened_at = now()
      WHERE id = $1 AND to_user = $2 AND opened_at IS NULL AND image IS NOT NULL AND created_at > now() - interval '24 hours'
-     RETURNING encode(image, 'base64') AS image, caption`, [id, req.user.id]);
+     RETURNING encode(image, 'base64') AS image, caption, sticker`, [id, req.user.id]);
   if (!s) return res.status(404).json({ error: 'Not found' });
-  res.json({ image: s.image, caption: s.caption || null });
+  res.json({ image: s.image, caption: s.caption || null, sticker: s.sticker || null });
 });
 
 router.post('/:id/done', auth, async (req, res) => {

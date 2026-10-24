@@ -275,4 +275,25 @@ router.post('/:id/cancel', auth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// the sender's standing in a race, for a proof snap's sticker (routes/snaps.js):
+// worked out here, from their logs, so it can't be made up on the phone.
+// { kind, key?, unit, value, goal?, endsAt } or null (not running)
+async function standing(c, userId) {
+  if (!c || c.status !== 'accepted') return null;
+  const spec = specOf(c);
+  const mine = c.from_user === userId;
+  if (spec.kind === 'points') {
+    const { rows: [p] } = await pool.query('SELECT points FROM profiles WHERE user_id = $1', [userId]);
+    const start = mine ? c.from_start : c.to_start;
+    return { kind: 'points', unit: 'pts', value: Math.max(0, (p?.points ?? 0) - (start ?? 0)), goal: null, endsAt: c.ends_at };
+  }
+  const s = new Date(c.starts_at).getTime(), e = new Date(c.ends_at).getTime();
+  const { value } = R.progress(spec, await logsOf(userId, s), s, e);
+  return {
+    kind: spec.kind, key: spec.target?.key || null, unit: spec.kind === 'routine' ? 'times' : spec.target.unit,
+    value, goal: R.goalOf(spec), name: spec.routine?.name || null, endsAt: c.ends_at,
+  };
+}
+
 module.exports = router;
+module.exports.standing = standing;
