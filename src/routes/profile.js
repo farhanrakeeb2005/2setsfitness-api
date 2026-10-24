@@ -64,7 +64,7 @@ router.get('/public/:id', auth, async (req, res) => {
   const id = String(req.params.id || '');
   if (!/^[0-9a-f]{32}$/.test(id)) return res.status(404).json({ error: 'Not found' });
   const { rows } = await pool.query(
-    `SELECT u.name, u.created_at, p.points, p.avatar_emoji, p.avatar_photo, p.public_card, p.leaderboard_hidden,
+    `SELECT u.name, u.created_at, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, p.avatar_emoji, p.avatar_photo, p.public_card, p.leaderboard_hidden,
             (p.user_id = $2) AS me
      FROM profiles p JOIN users u ON u.id = p.user_id
      WHERE p.public_id = $1`,
@@ -74,7 +74,7 @@ router.get('/public/:id', auth, async (req, res) => {
   if (!r || (r.leaderboard_hidden && !r.me)) return res.status(404).json({ error: 'Not found' });
   const points = r.points ?? 0;
   const pos = await pool.query(
-    `SELECT COUNT(*) + 1 AS position FROM profiles WHERE NOT leaderboard_hidden AND COALESCE(points, 0) > $1`,
+    `SELECT COUNT(*) + 1 AS position FROM profiles WHERE NOT leaderboard_hidden AND GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) > $1`,
     [points]
   );
   res.json({

@@ -54,6 +54,21 @@ const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS challenges_from ON challenges (from_user, status)`,
   `CREATE INDEX IF NOT EXISTS challenges_to ON challenges (to_user, status)`,
+  // what a challenge is (lib/challengeRules.js): its kind, days, stake and
+  // forfeit, a target or routine race's goal, and how it ended
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'points'`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS days INTEGER NOT NULL DEFAULT 7`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS stake INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS forfeit TEXT`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS target JSONB`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS routine JSONB`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS winner TEXT`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS moved INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS from_value NUMERIC`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS to_value NUMERIC`,
+  // the points a player's challenges have won (+) or lost (-), on top of the
+  // total the app reports (the leaderboard shows the two together, never below 0)
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS challenge_pts INTEGER NOT NULL DEFAULT 0`,
   // each phone's push token (lib/push.js), with the app's language; they go with the account
   `CREATE TABLE IF NOT EXISTS push_tokens (
     token TEXT PRIMARY KEY,

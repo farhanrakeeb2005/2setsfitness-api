@@ -42,7 +42,7 @@ function getRank(points) {
 // GET /points — current user's points + rank
 router.get('/', auth, async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT points FROM profiles WHERE user_id = $1',
+    'SELECT GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) AS points FROM profiles WHERE user_id = $1',
     [req.user.id]
   );
   const points = rows[0]?.points ?? 0;
@@ -78,8 +78,11 @@ router.put('/', auth, async (req, res) => {
     vals.push(ph); sets.push(`avatar_photo = $${vals.length}`);
   }
   vals.push(req.user.id);
-  await pool.query(`UPDATE profiles SET ${sets.join(', ')} WHERE user_id = $${vals.length}`, vals);
-  res.json({ points: stored, rank: getRank(stored) });
+  const { rows: [after] } = await pool.query(`UPDATE profiles SET ${sets.join(', ')} WHERE user_id = $${vals.length}
+    RETURNING GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) AS points`, vals);
+  // (with what challenges won or lost: the leaderboard's figure)
+  const shown = Number(after?.points ?? stored);
+  res.json({ points: shown, rank: getRank(shown) });
 });
 
 // GET /points/leaderboard — top 20 by points + caller's global position;
@@ -89,11 +92,11 @@ router.put('/', auth, async (req, res) => {
 // to themselves.
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, p.points, (p.user_id = $1) AS me
+    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
      WHERE NOT p.leaderboard_hidden OR p.user_id = $1
-     ORDER BY p.points DESC NULLS LAST, u.id
+     ORDER BY GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) DESC, u.id
      LIMIT 20`,
     [req.user.id]
   );
@@ -112,7 +115,7 @@ router.get('/leaderboard', auth, async (req, res) => {
     `SELECT COUNT(*) + 1 AS position
      FROM profiles
      WHERE NOT leaderboard_hidden
-       AND COALESCE(points, 0) > COALESCE((SELECT points FROM profiles WHERE user_id = $1), 0)`,
+       AND GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) > COALESCE((SELECT GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) FROM profiles WHERE user_id = $1), 0)`,
     [req.user.id]
   );
   const mine = leaderboard.find((r) => r.me);
