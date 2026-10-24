@@ -39,7 +39,8 @@ const oldEnough = (createdAt) => !createdAt || Date.now() - new Date(createdAt).
 const specOf = (c) => ({ kind: c.kind || 'points', days: c.days || 7, stake: c.stake || 0, target: c.target, routine: c.routine });
 
 // One player's workouts and sports logged since `since` (ms). The app backs
-// up to Firestore (users/{uid}/history|sports/{key}, each { updatedAt, json },
+// up to Firestore (users/{uid}/history|sports/{key}, each { updatedAt, json:
+// '{"item":…}' },
 // lib/firestoreSync.js in the app); anything logged during a race was written
 // after it began, so only docs updated since then are read. Older app builds
 // backed up to /sync (user_sync): those are read too, and the two merged by id.
@@ -58,7 +59,8 @@ async function logsOf(userId, since = 0) {
     await Promise.all(['history', 'sports'].map(async (name) => {
       const snap = await db.collection(`users/${userId}/${name}`)
         .where('updatedAt', '>=', Timestamp.fromMillis(Math.max(0, since - 60_000))).get();
-      snap.forEach((d) => { try { add(name, JSON.parse(d.get('json'))); } catch { /* a tombstone or bad doc */ } });
+      // (each doc is { item, deleted? }: a deleted one doesn't count)
+      snap.forEach((d) => { try { const e = JSON.parse(d.get('json')); if (e?.item && !e.deleted) add(name, e.item); } catch { /* a bad doc */ } });
     }));
   } catch (e) {
     console.error('challenge logs (firestore):', e.message);
