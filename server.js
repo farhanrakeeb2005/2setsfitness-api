@@ -72,6 +72,17 @@ const MIGRATIONS = [
   // proof snaps were taken out (2026-10-24): their table goes, with any photo in it
   `DROP TABLE IF EXISTS snaps`,
   `ALTER TABLE profiles DROP COLUMN IF EXISTS snaps_off`,
+  // the website's contact form (src/routes/contact.js)
+  `CREATE TABLE IF NOT EXISTS contact_messages (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  // (the privacy policy promises contact messages go within 12 months; this runs at every start)
+  `DELETE FROM contact_messages WHERE created_at < now() - interval '12 months'`,
   // who has blocked whom (src/routes/blocks.js: challenges and friend requests)
   `CREATE TABLE IF NOT EXISTS blocks (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

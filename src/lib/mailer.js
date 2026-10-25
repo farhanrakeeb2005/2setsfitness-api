@@ -70,12 +70,13 @@ function updateEmail(name, subject, body, uid) {
   return { subject, html };
 }
 
-async function send(to, { subject, html }, uid) {
+async function send(to, { subject, html, replyTo }, uid) {
   const t = getTransport();
   if (!t || !realEmail(to)) return { sent: false };
   await t.sendMail({
     from: `"2SetsFitness" <${process.env.GMAIL_USER}>`,
     to, subject, html,
+    ...(replyTo ? { replyTo } : {}),
     headers: uid ? { 'List-Unsubscribe': `<${unsubUrl(uid)}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : undefined,
   });
   return { sent: true };
