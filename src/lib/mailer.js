@@ -82,4 +82,4 @@ async function send(to, { subject, html, replyTo }, uid) {
   return { sent: true };
 }
 
-module.exports = { esc, realEmail, firstName, unsubToken, unsubValid, unsubUrl, welcomeEmail, updateEmail, send };
+module.exports = { esc, realEmail, firstName, unsubToken, unsubValid, unsubUrl, shell, welcomeEmail, updateEmail, send };

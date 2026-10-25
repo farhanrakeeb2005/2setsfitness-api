@@ -34,9 +34,11 @@ test('bots: the hidden field filled, or sent too fast', () => {
 
 test('the email: escaped, reply goes to the sender, no header injection', () => {
   const m = contactEmail({ ...cleanContact(good).value, name: 'Eve"\r\nBcc: x@y.z', message: '<img src=x onerror=alert(1)>' });
-  assert.ok(!m.html.includes('<img'));
+  assert.ok(!m.html.includes('<img src=x'));
   assert.ok(m.html.includes('&lt;img'));
   assert.ok(!/[\r\n]/.test(m.replyTo));
   assert.ok(m.replyTo.endsWith('<alex@example.com>'));
-  assert.match(m.subject, /Something is broken/);
+  assert.match(m.subject, /^Something is broken: /);
+  assert.ok(m.html.includes('SETSFITNESS'));
+  assert.ok(!/[\r\n]/.test(m.subject));
 });

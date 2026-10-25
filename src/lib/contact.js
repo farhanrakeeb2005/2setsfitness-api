@@ -1,6 +1,6 @@
 // The website's contact form (src/routes/contact.js): checking what was sent,
 // and the email it becomes. Pure, so it's tested without SMTP or a database.
-const { esc, realEmail } = require('./mailer');
+const { esc, realEmail, shell } = require('./mailer');
 
 const TOPICS = ['Feedback or an idea', 'Something is broken', 'A question about the app', 'Press or partnership'];
 const LIMITS = { name: 80, email: 200, message: 4000 };
@@ -24,15 +24,20 @@ function looksLikeBot(body = {}) {
   return String(body.website ?? '') !== '' || !(Number(body.ms) >= 2500);
 }
 
+// the team's copy, in the same frame as the app's other emails
 function contactEmail({ name, email, topic, message }) {
-  const paras = message.split(/\n\s*\n/).map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.6">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  const paras = message.split(/\n\s*\n/)
+    .map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.65;color:#2a2c35">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  const html = shell(`
+<p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#E31E24">${esc(topic)}</p>
+<h1 style="margin:0 0 4px;font-size:22px;line-height:1.25;color:#141416">${esc(name)}</h1>
+<p style="margin:0 0 20px;font-size:14px;color:#6b6e7b">${esc(email)}</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="background:#f6f6f9;border-left:4px solid #E31E24;border-radius:8px;padding:16px 18px 4px">${paras}</td></tr></table>`,
+  'Sent from the contact form on the 2SetsFitness website. Press Reply to answer.');
   return {
-    subject: `2SetsFitness contact: ${topic}`,
+    subject: `${topic}: ${name.replace(/[\r\n]+/g, ' ')}`,
     replyTo: `"${name.replace(/["\\\r\n]/g, '')}" <${email}>`,
-    html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#141416;max-width:600px">
-<p style="margin:0 0 4px;font-size:13px;color:#6b6e7b">From the website contact form · reply to answer</p>
-<h2 style="margin:0 0 4px;font-size:20px">${esc(topic)}</h2>
-<p style="margin:0 0 16px;font-size:14px"><b>${esc(name)}</b> · ${esc(email)}</p>${paras}</body></html>`,
+    html,
   };
 }
 
