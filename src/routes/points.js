@@ -92,7 +92,8 @@ router.put('/', auth, async (req, res) => {
 // hidden from the leaderboard (Settings) aren't listed or counted, except
 // to themselves. Nor are accounts that never gave a name (still the
 // 'Athlete' placeholder: a sign-up that stopped before setup's name step).
-// tag: the player's friend code, so two players with one name tell apart.
+// tag: the caller's own friend code, on their row only (codes are private:
+// players share theirs with whoever they want to add them).
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, p.friend_code, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, (p.user_id = $1) AS me
@@ -107,7 +108,7 @@ router.get('/leaderboard', auth, async (req, res) => {
     position: i + 1,
     id: r.public_id,
     name: r.name,
-    tag: r.friend_code || null,
+    tag: r.me ? r.friend_code || null : null,
     avatarEmoji: r.avatar_emoji,
     avatarPhoto: r.avatar_photo || null,
     points: r.points ?? 0,

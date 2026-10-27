@@ -43,8 +43,13 @@ router.get('/', auth, async (req, res) => {
      ORDER BY points DESC, u.name
      LIMIT 400`, [me]);
   const code = await codeOf(me);
+  // my own row, for the friends ranking (the app puts me in it)
+  const { rows: [self] } = await pool.query(
+    `SELECT u.name, p.public_id, p.avatar_emoji, p.avatar_photo, ${EFFECTIVE} AS points
+     FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.user_id = $1`, [me]);
   res.json({
     code: code ? `2S-${code}` : null,
+    me: self ? card(self) : null,
     friends: rows.filter((r) => r.mine && r.theirs).map(card),
     incoming: rows.filter((r) => !r.mine && r.theirs).map(card),
     outgoing: rows.filter((r) => r.mine && !r.theirs).map(card),
