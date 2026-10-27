@@ -18,3 +18,10 @@ test('a result names the forfeit owed; forfeit messages quote it', () => {
   assert.ok(message('forfeitDone', 'so', 'Sam', 'X').body.includes('Sam'));
   assert.equal(message('draw', 'xx', 'Sam').title, "It's a draw");
 });
+
+test('friend requests and acceptances notify in the phone language', () => {
+  assert.deepEqual(message('friendRequest', 'en', 'Sam'), { title: 'Friend request', body: 'Sam wants to be your friend. Open the app to accept.' });
+  assert.equal(message('friendAccepted', 'de', 'Sam').title, 'Neuer Freund');
+  assert.ok(message('friendAccepted', 'zh-CN', 'Sam').body.includes('Sam'));
+  assert.equal(message('friendRequest', 'xx', 'Sam').title, 'Friend request');
+});

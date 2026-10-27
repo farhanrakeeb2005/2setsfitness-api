@@ -198,6 +198,62 @@ const T = {
     bn: ["শাস্তির কথা মনে করিয়ে দেওয়া", "{name} আপনার শাস্তির অপেক্ষায়: {f}"],
     so: ["Xusuusin ganaax", "{name} ayaa sugaya ganaaxaaga: {f}"],
   },
+  // friends (routes/friends.js): a request, and the request accepted
+  friendRequest: {
+    en: ['Friend request', '{name} wants to be your friend. Open the app to accept.'],
+    ar: ['طلب صداقة', '{name} يريد أن يكون صديقك. افتح التطبيق لتقبل.'],
+    ur: ['دوستی کی درخواست', '{name} آپ کا دوست بننا چاہتا ہے۔ قبول کرنے کے لیے ایپ کھولیں۔'],
+    es: ['Solicitud de amistad', '{name} quiere ser tu amigo. Abre la app para aceptar.'],
+    fr: ['Demande d\'ami', '{name} veut être ton ami. Ouvre l\'appli pour accepter.'],
+    pt: ['Pedido de amizade', '{name} quer ser teu amigo. Abre a app para aceitar.'],
+    tr: ['Arkadaşlık isteği', '{name} arkadaşın olmak istiyor. Kabul etmek için uygulamayı aç.'],
+    de: ['Freundschaftsanfrage', '{name} möchte mit dir befreundet sein. Öffne die App, um anzunehmen.'],
+    it: ['Richiesta di amicizia', '{name} vuole essere tuo amico. Apri l\'app per accettare.'],
+    nl: ['Vriendschapsverzoek', '{name} wil je vriend worden. Open de app om te accepteren.'],
+    ru: ['Запрос в друзья', '{name} хочет добавить вас в друзья. Откройте приложение, чтобы принять.'],
+    hi: ['दोस्ती का अनुरोध', '{name} आपका दोस्त बनना चाहता है। स्वीकार करने के लिए ऐप खोलें।'],
+    ja: ['フレンド申請', '{name}さんがフレンドになりたいそうです。アプリを開いて承認しましょう。'],
+    kr: ['친구 요청', '{name}님이 친구가 되고 싶어 해요. 앱을 열어 수락하세요.'],
+    vi: ['Lời mời kết bạn', '{name} muốn kết bạn với bạn. Mở ứng dụng để chấp nhận.'],
+    th: ['คำขอเป็นเพื่อน', '{name} อยากเป็นเพื่อนกับคุณ เปิดแอปเพื่อตอบรับ'],
+    sw: ['Ombi la urafiki', '{name} anataka kuwa rafiki yako. Fungua programu ukubali.'],
+    'zh-CN': ['好友请求', '{name} 想加你为好友。打开应用即可接受。'],
+    ms: ['Permintaan rakan', '{name} mahu menjadi rakan anda. Buka aplikasi untuk menerima.'],
+    id: ['Permintaan pertemanan', '{name} ingin berteman denganmu. Buka aplikasi untuk menerima.'],
+    tl: ['Friend request', 'Gustong makipagkaibigan ni {name}. Buksan ang app para tanggapin.'],
+    pl: ['Zaproszenie do znajomych', '{name} chce być twoim znajomym. Otwórz aplikację, by przyjąć.'],
+    fa: ['درخواست دوستی', '{name} می‌خواهد با شما دوست شود. برای پذیرفتن، برنامه را باز کنید.'],
+    bn: ['বন্ধুত্বের অনুরোধ', '{name} আপনার বন্ধু হতে চায়। গ্রহণ করতে অ্যাপ খুলুন।'],
+    so: ['Codsi saaxiibtinimo', '{name} wuxuu rabaa inuu saaxiibkaa noqdo. Fur app-ka si aad u aqbasho.'],
+  },
+  // friends (routes/friends.js): a request, and the request accepted
+  friendAccepted: {
+    en: ['New friend', '{name} accepted your friend request. Challenge them or find them on your rank map.'],
+    ar: ['صديق جديد', 'قبل {name} طلب صداقتك. تحدَّه أو ابحث عنه في خريطة الرتب.'],
+    ur: ['نیا دوست', '{name} نے آپ کی دوستی کی درخواست قبول کر لی۔ انہیں چیلنج کریں یا رینک میپ پر دیکھیں۔'],
+    es: ['Nuevo amigo', '{name} aceptó tu solicitud. Rétale o búscale en tu mapa de rangos.'],
+    fr: ['Nouvel ami', '{name} a accepté ta demande. Lance-lui un défi ou retrouve-le sur ta carte des rangs.'],
+    pt: ['Novo amigo', '{name} aceitou o teu pedido. Desafia-o ou encontra-o no mapa de níveis.'],
+    tr: ['Yeni arkadaş', '{name} arkadaşlık isteğini kabul etti. Ona meydan oku ya da rütbe haritanda bul.'],
+    de: ['Neuer Freund', '{name} hat deine Anfrage angenommen. Fordere ihn heraus oder finde ihn auf deiner Rangkarte.'],
+    it: ['Nuovo amico', '{name} ha accettato la tua richiesta. Sfidalo o trovalo sulla mappa dei ranghi.'],
+    nl: ['Nieuwe vriend', '{name} heeft je verzoek geaccepteerd. Daag hem uit of vind hem op je rangkaart.'],
+    ru: ['Новый друг', '{name} принял(а) ваш запрос. Бросьте вызов или найдите на карте рангов.'],
+    hi: ['नया दोस्त', '{name} ने आपका अनुरोध स्वीकार किया। उन्हें चुनौती दें या रैंक मैप पर देखें।'],
+    ja: ['新しいフレンド', '{name}さんが申請を承認しました。挑戦するか、ランクマップで見つけましょう。'],
+    kr: ['새 친구', '{name}님이 친구 요청을 수락했어요. 도전하거나 랭크 지도에서 찾아보세요.'],
+    vi: ['Bạn mới', '{name} đã chấp nhận lời mời. Hãy thách đấu hoặc tìm họ trên bản đồ hạng.'],
+    th: ['เพื่อนใหม่', '{name} ตอบรับคำขอแล้ว ท้าแข่งหรือดูเขาบนแผนที่แรงก์ได้เลย'],
+    sw: ['Rafiki mpya', '{name} amekubali ombi lako. Mpe changamoto au umtafute kwenye ramani ya daraja.'],
+    'zh-CN': ['新好友', '{name} 接受了你的好友请求。去挑战 TA，或在等级地图上找到 TA。'],
+    ms: ['Rakan baharu', '{name} menerima permintaan anda. Cabar mereka atau cari di peta pangkat.'],
+    id: ['Teman baru', '{name} menerima permintaanmu. Tantang dia atau temukan di peta peringkat.'],
+    tl: ['Bagong kaibigan', 'Tinanggap ni {name} ang friend request mo. Hamunin siya o hanapin sa rank map.'],
+    pl: ['Nowy znajomy', '{name} przyjmuje twoje zaproszenie. Rzuć wyzwanie albo znajdź go na mapie rang.'],
+    fa: ['دوست جدید', '{name} درخواست دوستی شما را پذیرفت. او را به چالش بکشید یا روی نقشهٔ رتبه پیدا کنید.'],
+    bn: ['নতুন বন্ধু', '{name} আপনার অনুরোধ গ্রহণ করেছে। চ্যালেঞ্জ দিন বা র‍্যাঙ্ক ম্যাপে খুঁজুন।'],
+    so: ['Saaxiib cusub', '{name} wuu aqbalay codsigaaga. Loolan u dir ama ka hel khariidadda darajada.'],
+  },
 };
 
 // what a challenge's loser owes, after the result ({f}: the forfeit)
@@ -218,7 +274,8 @@ function message(kind, lang, name, f) {
   return { title, body: text };
 }
 
-// kind: 'challenged' | 'accepted' | 'won' | 'lost' | 'draw' | 'forfeitDone' | 'forfeitNudge';
+// kind: 'challenged' | 'accepted' | 'won' | 'lost' | 'draw' | 'forfeitDone' | 'forfeitNudge'
+// | 'friendRequest' | 'friendAccepted';
 // data: small strings for the app (where to open)
 async function notifyUser(userId, kind, { name, forfeit, data = {} } = {}) {
   try {
