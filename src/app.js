@@ -52,6 +52,7 @@ const bodyRoutes            = require('./routes/body');
 const accountRoutes         = require('./routes/account');
 const emailRoutes           = require('./routes/email');
 const contactRoutes         = require('./routes/contact');
+const newsRoutes            = require('./routes/news');
 const challengeRoutes       = require('./routes/challenges');
 const blockRoutes           = require('./routes/blocks');
 const friendRoutes          = require('./routes/friends');
@@ -104,6 +105,7 @@ app.use('/body',             bodyRoutes);
 app.use('/account',          accountRoutes);
 app.use('/email',            emailRoutes);
 app.use('/contact',          contactRoutes);
+app.use('/news',             newsRoutes);
 
 app.get('/health', async (req, res) => {
   try {
