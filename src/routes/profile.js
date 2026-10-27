@@ -3,6 +3,7 @@ const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { cleanCard } = require('../lib/publicCard');
 const { getRank } = require('./points');
+const { realName } = require('../lib/names');
  
 router.get('/', auth, async (req, res) => {
   const { rows } = await pool.query(
@@ -14,7 +15,8 @@ router.get('/', auth, async (req, res) => {
  
 router.put('/', auth, async (req, res) => {
   const { name, goal, level, units, streak, last_workout_day, avatar_emoji } = req.body;
-  await pool.query('UPDATE users SET name = COALESCE($1, name) WHERE id = $2', [name, req.user.id]);
+  // (a blank name or the 'Athlete' placeholder never replaces a real one)
+  await pool.query('UPDATE users SET name = COALESCE($1, name) WHERE id = $2', [realName(name), req.user.id]);
   await pool.query(
     `UPDATE profiles SET goal=$1, level=$2, units=$3, streak=$4,
      last_workout_day=$5, avatar_emoji=$6, updated_at=NOW() WHERE user_id=$7`,

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
+const { NAMED } = require('../lib/names');
 const { cappedPoints } = require('../lib/pointsCap');
 const { cleanPhoto, cleanEmoji } = require('../lib/publicCard');
 
@@ -89,13 +90,15 @@ router.put('/', auth, async (req, res) => {
 // the caller's own row says me: true. Rows carry the player's public id (for
 // GET /profile/public/:id), never the account id. Accounts
 // hidden from the leaderboard (Settings) aren't listed or counted, except
-// to themselves.
+// to themselves. Nor are accounts that never gave a name (still the
+// 'Athlete' placeholder: a sign-up that stopped before setup's name step).
+// tag: the player's friend code, so two players with one name tell apart.
 router.get('/leaderboard', auth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, (p.user_id = $1) AS me
+    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, p.friend_code, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
-     WHERE NOT p.leaderboard_hidden OR p.user_id = $1
+     WHERE (NOT p.leaderboard_hidden AND ${NAMED('u')}) OR p.user_id = $1
      ORDER BY GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) DESC, u.id
      LIMIT 20`,
     [req.user.id]
@@ -104,6 +107,7 @@ router.get('/leaderboard', auth, async (req, res) => {
     position: i + 1,
     id: r.public_id,
     name: r.name,
+    tag: r.friend_code || null,
     avatarEmoji: r.avatar_emoji,
     avatarPhoto: r.avatar_photo || null,
     points: r.points ?? 0,
@@ -113,9 +117,9 @@ router.get('/leaderboard', auth, async (req, res) => {
   // (COALESCE outside the subquery: a caller with no profile row counts as 0)
   const posRow = await pool.query(
     `SELECT COUNT(*) + 1 AS position
-     FROM profiles
-     WHERE NOT leaderboard_hidden
-       AND GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) > COALESCE((SELECT GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) FROM profiles WHERE user_id = $1), 0)`,
+     FROM profiles p JOIN users u ON u.id = p.user_id
+     WHERE NOT p.leaderboard_hidden AND ${NAMED('u')}
+       AND GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) > COALESCE((SELECT GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) FROM profiles WHERE user_id = $1), 0)`,
     [req.user.id]
   );
   const mine = leaderboard.find((r) => r.me);

@@ -16,6 +16,7 @@ const pool   = require('../db');
 const { notifyUser } = require('../lib/push');
 const nameOf = async (userId) => (await pool.query('SELECT name FROM users WHERE id = $1', [userId])).rows[0]?.name || '';
 const auth   = require('../middleware/auth');
+const { NAMED } = require('../lib/names');
 
 const PUBLIC_ID = /^[0-9a-f]{32}$/;
 const CODE = /^(?:2S-?)?([0-9A-F]{6})$/i;
@@ -56,7 +57,7 @@ router.get('/search', auth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT u.name, p.public_id, p.avatar_emoji, p.avatar_photo, ${EFFECTIVE} AS points
      FROM profiles p JOIN users u ON u.id = p.user_id
-     WHERE NOT p.leaderboard_hidden AND p.user_id <> $1 AND u.name ILIKE $2
+     WHERE NOT p.leaderboard_hidden AND ${NAMED('u')} AND p.user_id <> $1 AND u.name ILIKE $2
      ORDER BY points DESC LIMIT 10`,
     [req.user.id, `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`]);
   res.json(rows.map(card));
