@@ -226,7 +226,9 @@ router.post('/meal-scan', auth, quota('meal-scan'), async (req, res) => {
   try {
     const msg = await anthropic.messages.create(request({
       model:     models().all,
-      maxTokens: 700,
+      // (700 cut a plate of six or more items off mid-list, and what came
+      // last, like the eggs, was lost)
+      maxTokens: 1400,
       content: [
           {
             type: 'image',
@@ -235,6 +237,9 @@ router.post('/meal-scan', auth, quota('meal-scan'), async (req, res) => {
           {
             type: 'text',
             text: `Analyse this meal photo and estimate nutrition. Be realistic with portion sizes.
+Look over the whole plate and anything beside it before answering. List every separate food as its own item: eggs (boiled, fried, omelette, scrambled), bread, rice, curries, meat, fish, vegetables, salad, sauces and chutneys, sides and drinks, including small ones and anything partly hidden under or next to another food.
+Give each item one short, specific name of at most 5 words (for example "Fried egg", "Chicken curry", "Chapati"): never two guesses joined with "or", and no explanation in brackets. If you are unsure what a food is, name the most likely one and lower "confidence".
+Count pieces where you can (2 eggs, 3 chapatis) and estimate grams from the plate and utensils.
 Return ONLY valid JSON, no markdown fences:
 {"items":[{"name":"food name","amount":150,"unit":"g","calories":230,"protein":8,"carbs":30,"fat":7}],"total":{"calories":230,"protein":8,"carbs":30,"fat":7},"confidence":"high"}
 confidence must be "high", "medium", or "low". Include every distinct food item visible.
