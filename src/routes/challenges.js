@@ -6,6 +6,8 @@
 //   GET  /challenges                 mine, sent and received, still open or ended in the last 14 days
 //   POST /challenges/:id/respond     { accept: true|false } the challenged player only
 //   POST /challenges/:id/cancel      the sender, while it's still pending
+//   POST /challenges/:id/forfeit-done   the loser: the forfeit is done (the winner hears)
+//   POST /challenges/:id/nudge       the winner: remind the loser of the forfeit (once a day)
 //
 // Once accepted it runs `days` from that moment. A points race scores the
 // points each side gained over it (the leaderboard's capped points); a target
@@ -15,7 +17,10 @@
 // the loser's challenge points to the winner's (profiles.challenge_pts, added
 // to the points the app reports; never below 0 in all). Players are only ever
 // named by their public id, never the account id; nobody hidden from the
-// leaderboard can be challenged.
+// leaderboard can be challenged. When a race is decided both players get
+// the result as a notification (with the forfeit owed), and races whose time
+// is up are settled every few minutes as well (settleDue, server.js), so the
+// result comes even if neither player opens the app.
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
@@ -108,6 +113,8 @@ async function finish(c, fromValue, toValue, winner) {
       await client.query('UPDATE profiles SET challenge_pts = COALESCE(challenge_pts, 0) - $2 WHERE user_id = $1', [l, moved]);
     }
     await client.query('COMMIT');
+    if (rowCount) announce(c, winner);
+    return rowCount > 0;
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     throw e;
@@ -116,13 +123,30 @@ async function finish(c, fromValue, toValue, winner) {
   }
 }
 
-// The caller's running races: settle those that are over; the rest get their
-// live progress (by challenge id) for the reply
-async function settle(userId) {
-  const { rows } = await pool.query(
-    `SELECT c.*, fp.points AS from_now, tp.points AS to_now FROM challenges c
-     JOIN profiles fp ON fp.user_id = c.from_user JOIN profiles tp ON tp.user_id = c.to_user
-     WHERE c.status = 'accepted' AND (c.from_user = $1 OR c.to_user = $1)`, [userId]);
+// both players hear the result, the forfeit owed with it (after the commit;
+// a notification never holds anything up)
+async function announce(c, winner) {
+  try {
+    const [fromName, toName] = await Promise.all([nameOf(c.from_user), nameOf(c.to_user)]);
+    const data = { challengeId: c.id };
+    const forfeit = c.forfeit || undefined;
+    if (winner === 'draw') {
+      notifyUser(c.from_user, 'draw', { name: toName, data });
+      notifyUser(c.to_user, 'draw', { name: fromName, data });
+      return;
+    }
+    const [w, l, wName, lName] = winner === 'from'
+      ? [c.from_user, c.to_user, fromName, toName] : [c.to_user, c.from_user, toName, fromName];
+    notifyUser(w, 'won', { name: lName, forfeit, data });
+    notifyUser(l, 'lost', { name: wName, forfeit, data });
+  } catch (e) {
+    console.warn('challenge result push:', e.message);
+  }
+}
+
+// Settles the races in `rows` that are decided; the rest get their live
+// progress (by challenge id)
+async function settleRows(rows) {
   const live = {};
   for (const c of rows) {
     const ended = new Date(c.ends_at).getTime() <= Date.now();
@@ -138,6 +162,28 @@ async function settle(userId) {
     else live[c.id] = { from: from.value, to: to.value };
   }
   return live;
+}
+
+const RUNNING = `SELECT c.*, fp.points AS from_now, tp.points AS to_now FROM challenges c
+  JOIN profiles fp ON fp.user_id = c.from_user JOIN profiles tp ON tp.user_id = c.to_user
+  WHERE c.status = 'accepted'`;
+
+// The caller's running races: settle those that are over; the rest get their
+// live progress (by challenge id) for the reply
+async function settle(userId) {
+  const { rows } = await pool.query(`${RUNNING} AND (c.from_user = $1 OR c.to_user = $1)`, [userId]);
+  return settleRows(rows);
+}
+
+// Every race whose time is up, whoever's they are (server.js runs it every
+// few minutes), so the result and its notification come on time
+async function settleDue() {
+  try {
+    const { rows } = await pool.query(`${RUNNING} AND c.ends_at <= now() LIMIT 50`);
+    for (const c of rows) await settleRows([c]).catch((e) => console.warn('settle', c.id, e.message));
+  } catch (e) {
+    console.warn('settleDue:', e.message);
+  }
 }
 
 router.post('/', auth, async (req, res) => {
@@ -185,7 +231,7 @@ router.get('/', auth, async (req, res) => {
   const live = await settle(req.user.id);
   const { rows } = await pool.query(
     `SELECT c.id, c.status, c.created_at, c.starts_at, c.ends_at, c.kind, c.days, c.stake, c.forfeit, c.target, c.routine,
-            c.winner, c.moved, c.from_value, c.to_value,
+            c.winner, c.moved, c.from_value, c.to_value, c.forfeit_done_at, c.nudged_at,
             c.from_user = $1 AS sent,
             c.from_start, c.to_start, c.from_end, c.to_end,
             fp.points AS from_now, tp.points AS to_now,
@@ -226,6 +272,9 @@ router.get('/', auth, async (req, res) => {
         mine, theirs,
         result: r.status === 'done' ? won : null,
         moved: r.status === 'done' ? (r.moved || 0) : 0,
+        // the forfeit: done (the loser said so), and when the winner last asked for it
+        forfeitDone: !!r.forfeit_done_at,
+        nudgedAt: r.nudged_at || null,
       };
     }),
     // the net points the caller's challenges have won or lost (added to the app's own total)
@@ -277,4 +326,40 @@ router.post('/:id/cancel', auth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// the loser and the winner of a finished race with a forfeit (and their names)
+async function forfeitRace(id) {
+  const { rows: [c] } = await pool.query(
+    `SELECT * FROM challenges WHERE id = $1 AND status = 'done' AND winner IN ('from', 'to') AND forfeit IS NOT NULL`, [id]);
+  if (!c) return null;
+  return { c, winner: c.winner === 'from' ? c.from_user : c.to_user, loser: c.winner === 'from' ? c.to_user : c.from_user };
+}
+
+router.post('/:id/forfeit-done', auth, async (req, res) => {
+  const id = String(req.params.id || '');
+  if (!CHALLENGE_ID.test(id)) return res.status(404).json({ error: 'Not found' });
+  const r = await forfeitRace(id);
+  if (!r || r.loser !== req.user.id) return res.status(404).json({ error: 'Not found' });
+  const { rowCount } = await pool.query(
+    'UPDATE challenges SET forfeit_done_at = now() WHERE id = $1 AND forfeit_done_at IS NULL', [id]);
+  res.json({ ok: true });
+  if (rowCount) notifyUser(r.winner, 'forfeitDone', { name: await nameOf(req.user.id), forfeit: r.c.forfeit, data: { challengeId: id } });
+});
+
+// once a day at most, and not after it's done
+const NUDGE_EVERY_MS = 20 * 3600 * 1000;
+router.post('/:id/nudge', auth, async (req, res) => {
+  const id = String(req.params.id || '');
+  if (!CHALLENGE_ID.test(id)) return res.status(404).json({ error: 'Not found' });
+  const r = await forfeitRace(id);
+  if (!r || r.winner !== req.user.id) return res.status(404).json({ error: 'Not found' });
+  if (r.c.forfeit_done_at) return res.status(409).json({ error: 'done', message: 'The forfeit is already done' });
+  const { rowCount } = await pool.query(
+    `UPDATE challenges SET nudged_at = now() WHERE id = $1 AND forfeit_done_at IS NULL
+       AND (nudged_at IS NULL OR nudged_at < now() - make_interval(secs => $2))`, [id, NUDGE_EVERY_MS / 1000]);
+  if (!rowCount) return res.status(429).json({ error: 'soon', message: 'You can remind them again tomorrow' });
+  res.json({ ok: true });
+  notifyUser(r.loser, 'forfeitNudge', { name: await nameOf(req.user.id), forfeit: r.c.forfeit, data: { challengeId: id } });
+});
+
 module.exports = router;
+module.exports.settleDue = settleDue;

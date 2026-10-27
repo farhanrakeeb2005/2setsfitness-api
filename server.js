@@ -66,6 +66,9 @@ const MIGRATIONS = [
   `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS moved INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS from_value NUMERIC`,
   `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS to_value NUMERIC`,
+  // a forfeit done (the loser said so) and the winner's last reminder (routes/challenges.js)
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS forfeit_done_at TIMESTAMPTZ`,
+  `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS nudged_at TIMESTAMPTZ`,
   // the points a player's challenges have won (+) or lost (-), on top of the
   // total the app reports (the leaderboard shows the two together, never below 0)
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS challenge_pts INTEGER NOT NULL DEFAULT 0`,
@@ -119,6 +122,10 @@ async function runMigrations() {
 
 runMigrations().then(() => {
   const server = app.listen(PORT, () => console.log(`API running on port ${PORT}`));
+  // races whose time is up are settled (and both players told) every few
+  // minutes while an instance runs; a player opening the app settles theirs too
+  const { settleDue } = require('./src/routes/challenges');
+  setInterval(settleDue, 5 * 60 * 1000).unref();
   // Cloud Run stops an idle instance with SIGTERM: finish requests, close the pool
   process.on('SIGTERM', () => {
     server.close(() => pool.end().finally(() => process.exit(0)));
