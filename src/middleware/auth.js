@@ -2,6 +2,7 @@ const { getAuth } = require('firebase-admin/auth');
 const pool = require('../db');
 const { initFirebaseAdmin } = require('../lib/firebaseAdmin');
 const mailer = require('../lib/mailer');
+const { emailOk } = require('../lib/accountRules');
 
 // service account JSON/file, or Application Default Credentials on Cloud Run
 // (src/lib/firebaseAdmin.js)
@@ -31,6 +32,8 @@ module.exports = async function authMiddleware(req, res, next) {
   const idToken = header.slice(7);
   try {
     const decoded = await getAuth().verifyIdToken(idToken);
+    // (lib/accountRules.js: email/password accounts once confirmed)
+    if (!emailOk(decoded)) return res.status(403).json({ error: 'email_not_verified', message: 'Verify your email address first' });
     req.user = { id: decoded.uid, email: decoded.email };
     await ensureProfile(decoded.uid, decoded.email, decoded.name);
     next();

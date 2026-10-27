@@ -75,7 +75,12 @@ app.use(generalLimiter);
 // firebase-admin is started first, by the auth middleware's module
 require('./middleware/auth');
 app.use(require('./middleware/appCheck').appCheckGuard());
-app.use(cors());
+// Browsers may call the API only from our own pages: the web app, the
+// website (its contact form) and local testing. The phone app sends no
+// Origin and is unaffected; an origin not on the list gets no CORS headers,
+// so the browser refuses the reply. CORS_ORIGINS (comma-separated) adds more.
+const { corsOrigin } = require('./lib/corsOrigins');
+app.use(cors({ origin: corsOrigin }));
 // before the global parser: a first backup can be a few MB (default 100 kB)
 app.use('/sync', express.json({ limit: '5mb' }),
   createSyncRouter({ pool: require('./db'), auth: require('./middleware/auth'), limiter: syncLimiter }));
