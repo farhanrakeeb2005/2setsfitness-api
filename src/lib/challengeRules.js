@@ -8,8 +8,8 @@
 //            a workout with the routine's name and a done set of each exercise
 //
 // If nobody gets there before the end, whoever got closest wins; level is a
-// draw. A stake (points) goes from the loser to the winner; a forfeit is
-// words on the result card, nothing more. Reps are taken on trust, with caps
+// draw. A stake (points) goes from the loser to the winner. (Forfeits, words
+// on the result card, are no longer taken; older races keep theirs.) Reps are taken on trust, with caps
 // (a set counts for at most SET_REPS, a day for at most DAY_REPS): the only
 // person you cheat is yourself.
 
@@ -49,9 +49,7 @@ function cleanSpec(b = {}) {
   if (!DAYS.includes(days)) return { error: 'Invalid days' };
   const stake = b.stake == null ? 0 : Number(b.stake);
   if (!STAKES.includes(stake)) return { error: 'Invalid stake' };
-  const forfeit = str(b.forfeit, FORFEIT_MAX + 1);
-  if (forfeit.length > FORFEIT_MAX) return { error: 'Forfeit too long' };
-  const spec = { kind, days, stake, forfeit: forfeit || null, target: null, routine: null };
+  const spec = { kind, days, stake, forfeit: null, target: null, routine: null };
   if (kind === 'target') {
     const key = b.target?.key, t = TARGETS[key];
     const amount = Number(b.target?.amount);

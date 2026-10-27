@@ -3,7 +3,8 @@ const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { cleanCard } = require('../lib/publicCard');
 const { getRank } = require('./points');
-const { realName } = require('../lib/names');
+const { realName, NAMED } = require('../lib/names');
+const { recordOf } = require('../lib/record');
  
 router.get('/', auth, async (req, res) => {
   const { rows } = await pool.query(
@@ -66,7 +67,7 @@ router.get('/public/:id', auth, async (req, res) => {
   const id = String(req.params.id || '');
   if (!/^[0-9a-f]{32}$/.test(id)) return res.status(404).json({ error: 'Not found' });
   const { rows } = await pool.query(
-    `SELECT u.name, u.created_at, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, p.avatar_emoji, p.avatar_photo, p.public_card, p.leaderboard_hidden,
+    `SELECT p.user_id, u.name, u.created_at, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, p.avatar_emoji, p.avatar_photo, p.public_card, p.leaderboard_hidden,
             (p.user_id = $2) AS me,
             EXISTS (SELECT 1 FROM friends f WHERE f.user_id = $2 AND f.friend_id = p.user_id) AS asked,
             EXISTS (SELECT 1 FROM friends f WHERE f.user_id = p.user_id AND f.friend_id = $2) AS asked_me
@@ -78,7 +79,8 @@ router.get('/public/:id', auth, async (req, res) => {
   if (!r || (r.leaderboard_hidden && !r.me)) return res.status(404).json({ error: 'Not found' });
   const points = r.points ?? 0;
   const pos = await pool.query(
-    `SELECT COUNT(*) + 1 AS position FROM profiles WHERE NOT leaderboard_hidden AND GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) > $1`,
+    `SELECT COUNT(*) + 1 AS position FROM profiles p JOIN users u ON u.id = p.user_id
+     WHERE NOT p.leaderboard_hidden AND ${NAMED('u')} AND GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) > $1`,
     [points]
   );
   res.json({
@@ -94,6 +96,9 @@ router.get('/public/:id', auth, async (req, res) => {
     me: !!r.me,
     // you and them (routes/friends.js): none | requested | incoming | friends
     friend: r.asked && r.asked_me ? 'friends' : r.asked ? 'requested' : r.asked_me ? 'incoming' : 'none',
+    // challenges (lib/record.js): their wins / draws / losses, and theirs against the viewer
+    record: await recordOf(pool, r.user_id),
+    vsMe: r.me ? null : await recordOf(pool, r.user_id, req.user.id),
   });
 });
 

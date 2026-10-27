@@ -3,7 +3,8 @@
 //
 //   POST /challenges                 { to: <public id>, kind, days, stake, forfeit, target, routine }
 //                                    send one (pending); left out, a 7-day points race
-//   GET  /challenges                 mine, sent and received, still open or ended in the last 14 days
+//   GET  /challenges                 mine, sent and received, still open or ended in the last 14 days;
+//                                    record (my wins / draws / losses) and records (by opponent's public id)
 //   POST /challenges/:id/respond     { accept: true|false } the challenged player only
 //   POST /challenges/:id/cancel      the sender, while it's still pending
 //   POST /challenges/:id/forfeit-done   the loser: the forfeit is done (the winner hears)
@@ -26,6 +27,7 @@ const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { notifyUser } = require('../lib/push');
 const R = require('../lib/challengeRules');
+const { recordOf, recordsByOpponent } = require('../lib/record');
 
 const nameOf = async (userId) => (await pool.query('SELECT name FROM users WHERE id = $1', [userId])).rows[0]?.name || '';
 
@@ -279,6 +281,8 @@ router.get('/', auth, async (req, res) => {
     }),
     // the net points the caller's challenges have won or lost (added to the app's own total)
     challengePoints: Number(me?.n || 0),
+    record: await recordOf(pool, req.user.id),
+    records: await recordsByOpponent(pool, req.user.id),
   });
 });
 

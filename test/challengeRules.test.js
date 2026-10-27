@@ -10,11 +10,11 @@ test('a challenge body: defaults to a 7-day points race, rejects what is not on 
   assert.deepEqual(R.cleanSpec({}).spec, { kind: 'points', days: 7, stake: 0, forfeit: null, target: null, routine: null });
   assert.equal(R.cleanSpec({ days: 5 }).error, 'Invalid days');
   assert.equal(R.cleanSpec({ stake: 30 }).error, 'Invalid stake');
-  assert.equal(R.cleanSpec({ forfeit: 'x'.repeat(61) }).error, 'Forfeit too long');
+  assert.equal(R.cleanSpec({ forfeit: 'x'.repeat(61) }).spec.forfeit, null, 'forfeits are no longer taken');
   assert.equal(R.cleanSpec({ kind: 'target', target: { key: 'pushups', amount: 3 } }).error, 'Invalid amount');
   assert.equal(R.cleanSpec({ kind: 'target', target: { key: 'planks', amount: 30 } }).error, 'Invalid target');
   assert.deepEqual(R.cleanSpec({ kind: 'target', days: 3, stake: 25, forfeit: ' Loser buys the shakes ', target: { key: 'run', amount: 10.04 } }).spec,
-    { kind: 'target', days: 3, stake: 25, forfeit: 'Loser buys the shakes', target: { key: 'run', unit: 'km', amount: 10 }, routine: null });
+    { kind: 'target', days: 3, stake: 25, forfeit: null, target: { key: 'run', unit: 'km', amount: 10 }, routine: null });
   assert.equal(R.cleanSpec({ kind: 'routine', routine: { name: 'Leg Day', exercises: [] } }).error, 'Invalid routine');
 });
 
