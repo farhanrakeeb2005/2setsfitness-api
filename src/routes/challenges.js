@@ -3,7 +3,7 @@
 //
 //   POST /challenges                 { to: <public id>, kind, days, stake, forfeit, target, routine }
 //                                    send one (pending); left out, a 7-day points race
-//   GET  /challenges                 mine, sent and received, still open or ended in the last 14 days;
+//   GET  /challenges                 mine, sent and received, still open or ended in the last 30 days;
 //                                    record (my wins / draws / losses) and records (by opponent's public id)
 //   POST /challenges/:id/respond     { accept: true|false } the challenged player only
 //   POST /challenges/:id/cancel      the sender, while it's still pending
@@ -249,7 +249,7 @@ router.get('/', auth, async (req, res) => {
      JOIN users ou ON ou.id = CASE WHEN c.from_user = $1 THEN c.to_user ELSE c.from_user END
      JOIN profiles op ON op.user_id = ou.id
      WHERE (c.from_user = $1 OR c.to_user = $1)
-       AND (c.status IN ('pending', 'accepted') OR (c.status = 'done' AND c.ends_at > now() - interval '14 days'))
+       AND (c.status IN ('pending', 'accepted') OR (c.status = 'done' AND c.ends_at > now() - interval '30 days'))
      ORDER BY c.created_at DESC
      LIMIT 30`,
     [req.user.id]

@@ -20,7 +20,13 @@ test('newest first: ids only ever grow, so the app can count unread ones', () =>
 
 test('the list sends only the known fields, at most 30', () => {
   const many = Array.from({ length: 40 }, (_, i) => ({ id: String(100 - i), date: '2026-01-01', tag: 'new', emoji: 'x', title: 't', body: 'b', secret: 1 }));
-  const out = newsList(many);
+  const out = newsList(many, Date.parse('2026-01-02T12:00:00Z'));
   assert.equal(out.length, 30);
   assert.equal(out[0].secret, undefined);
+});
+
+test('an item drops off a week after its date', () => {
+  const item = { id: '1', date: '2026-10-20', tag: 'new', emoji: 'x', title: 't', body: 'b' };
+  assert.equal(newsList([item], Date.parse('2026-10-27T20:00:00Z')).length, 1);
+  assert.equal(newsList([item], Date.parse('2026-10-29T01:00:00Z')).length, 0);
 });
