@@ -8,13 +8,17 @@
 //
 // Env: AI_MODEL for every route, AI_CHAT_MODEL for the coach chat
 // (/ai/advice) only, e.g. claude-sonnet-5-5 for sharper answers at about
-// 20x the cost per reply.
+// 20x the cost per reply. AI_SCAN_MODEL for the meal photo scan only:
+// Sonnet 5.5 by default, because Haiku named dishes and guessed portions
+// loosely (a dal as "yellow curry", fried prawns as chicken); a scan is
+// one image and a short list, and the scan quota keeps the count down.
 
 const DEFAULT_MODEL = 'claude-haiku-5-5';
+const DEFAULT_SCAN_MODEL = 'claude-sonnet-5-5';
 
 function models(env = process.env) {
   const all = (env.AI_MODEL || '').trim() || DEFAULT_MODEL;
-  return { all, chat: (env.AI_CHAT_MODEL || '').trim() || all };
+  return { all, chat: (env.AI_CHAT_MODEL || '').trim() || all, scan: (env.AI_SCAN_MODEL || '').trim() || DEFAULT_SCAN_MODEL };
 }
 
 // thinking counts toward max_tokens; this much on top of the answer's own cap
@@ -37,4 +41,4 @@ function replyText(msg) {
   return text;
 }
 
-module.exports = { DEFAULT_MODEL, models, request, replyText };
+module.exports = { DEFAULT_MODEL, DEFAULT_SCAN_MODEL, models, request, replyText };

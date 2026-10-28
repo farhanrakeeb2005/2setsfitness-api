@@ -67,9 +67,11 @@ test('the middleware logs a call, refuses past the cap, and lets calls through o
 });
 
 test('the AI model and how its reply is read', () => {
-  const { DEFAULT_MODEL, models, request, replyText } = require('../src/lib/aiModel');
-  assert.deepEqual(models({}), { all: DEFAULT_MODEL, chat: DEFAULT_MODEL });
-  assert.deepEqual(models({ AI_CHAT_MODEL: 'claude-sonnet-5-5' }), { all: DEFAULT_MODEL, chat: 'claude-sonnet-5-5' });
+  const { DEFAULT_MODEL, DEFAULT_SCAN_MODEL, models, request, replyText } = require('../src/lib/aiModel');
+  assert.deepEqual(models({}), { all: DEFAULT_MODEL, chat: DEFAULT_MODEL, scan: DEFAULT_SCAN_MODEL });
+  assert.deepEqual(models({ AI_CHAT_MODEL: 'claude-sonnet-5-5' }), { all: DEFAULT_MODEL, chat: 'claude-sonnet-5-5', scan: DEFAULT_SCAN_MODEL });
+  // the meal scan has its own (a cheaper one can be set back)
+  assert.equal(models({ AI_SCAN_MODEL: 'claude-haiku-5-5' }).scan, 'claude-haiku-5-5');
   const r = request({ model: 'm', prompt: 'hi', maxTokens: 200 });
   assert.equal(r.output_config.effort, 'low');
   assert.ok(r.max_tokens > 200);                      // room for thinking

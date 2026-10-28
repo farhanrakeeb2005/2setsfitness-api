@@ -236,7 +236,10 @@ router.post('/meal-scan', auth, quota('meal-scan'), async (req, res) => {
 
   try {
     const msg = await anthropic.messages.create(request({
-      model:     models().all,
+      // its own model (aiModel.js: Sonnet by default) and room to think: the
+      // dish names and portions are the whole point
+      model:     models().scan,
+      effort:    'medium',
       // (700 cut a plate of six or more items off mid-list, and what came
       // last, like the eggs, was lost)
       maxTokens: 1400,
@@ -248,6 +251,8 @@ router.post('/meal-scan', auth, quota('meal-scan'), async (req, res) => {
           {
             type: 'text',
             text: `Analyse this meal photo and estimate nutrition. Be realistic with portion sizes.
+Work it out step by step before answering: what cuisine and meal this is (e.g. a South Asian rice plate, a Western breakfast), then each dish by its colour, texture and how it is cooked, using the cuisine's own names where they are the usual name (e.g. "Lentil dal", "Aubergine bharta", "Papad", "Masoor dal", "Chicken karahi"). Tell look-alikes apart carefully: fried prawns vs fried chicken (prawns curl and show segments), dal vs curry, omelette vs fried egg, papad vs crisps vs flatbread.
+Estimate each portion from its size on the plate: a dinner plate is about 26 cm across and a steel thali plate about 30 cm; a mound of cooked rice filling a third of the plate is about 250-300 g; a ladle of dal or curry is about 150 g; one egg omelette is about 60 g, two about 120 g.
 Look over the whole plate and anything beside it before answering. List every separate food as its own item: eggs (boiled, fried, omelette, scrambled), bread, rice, curries, meat, fish, vegetables, salad, sauces and chutneys, sides and drinks, including small ones and anything partly hidden under or next to another food.
 Give each item one short, specific name of at most 5 words (for example "Fried egg", "Chicken curry", "Chapati"): never two guesses joined with "or", and no explanation in brackets. If you are unsure what a food is, name the most likely one and lower "confidence".
 Count pieces where you can (2 eggs, 3 chapatis) and estimate grams from the plate and utensils.
