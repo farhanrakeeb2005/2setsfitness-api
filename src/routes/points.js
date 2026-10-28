@@ -98,15 +98,29 @@ router.put('/', auth, async (req, res) => {
 // 'Athlete' placeholder: a sign-up that stopped before setup's name step).
 // tag: the caller's own friend code, on their row only (codes are private:
 // players share theirs with whoever they want to add them).
+// ?scope=rank: only the players in the caller's rank (its points range), up
+// to 50, the ones they can challenge (lib/challengeAccess.js); rankName says which.
 router.get('/leaderboard', auth, async (req, res) => {
+  const EFF = 'GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0))';
+  const inRank = req.query.scope === 'rank';
+  const vals = [req.user.id];
+  let band = '', rankName = null;
+  if (inRank) {
+    const { rows: [m] } = await pool.query(`SELECT ${EFF} AS n FROM profiles p WHERE p.user_id = $1`, [req.user.id]);
+    const r = getRank(Number(m?.n || 0));
+    rankName = r.name;
+    vals.push(r.min);
+    band = ` AND ${EFF} >= $2`;
+    if (r.nextRankPts) { vals.push(r.nextRankPts); band += ` AND ${EFF} < $3`; }
+  }
   const { rows } = await pool.query(
-    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, p.friend_code, GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) AS points, (p.user_id = $1) AS me
+    `SELECT u.name, p.avatar_emoji, p.avatar_photo, p.public_id, p.friend_code, ${EFF} AS points, (p.user_id = $1) AS me
      FROM profiles p
      JOIN users u ON p.user_id = u.id
-     WHERE (NOT p.leaderboard_hidden AND ${NAMED('u')}) OR p.user_id = $1
-     ORDER BY GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) DESC, u.id
-     LIMIT 20`,
-    [req.user.id]
+     WHERE ((NOT p.leaderboard_hidden AND ${NAMED('u')}) OR p.user_id = $1)${band}
+     ORDER BY ${EFF} DESC, u.id
+     LIMIT ${inRank ? 50 : 20}`,
+    vals
   );
   const leaderboard = rows.map((r, i) => ({
     position: i + 1,
@@ -123,13 +137,15 @@ router.get('/leaderboard', auth, async (req, res) => {
   const posRow = await pool.query(
     `SELECT COUNT(*) + 1 AS position
      FROM profiles p JOIN users u ON u.id = p.user_id
-     WHERE NOT p.leaderboard_hidden AND ${NAMED('u')}
+     WHERE NOT p.leaderboard_hidden AND ${NAMED('u')}${band}
        AND GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) > COALESCE((SELECT GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) FROM profiles WHERE user_id = $1), 0)`,
-    [req.user.id]
+    vals
   );
   const mine = leaderboard.find((r) => r.me);
   res.json({
     leaderboard,
+    scope: inRank ? 'rank' : 'all',
+    rankName,
     myPosition: mine ? mine.position : parseInt(posRow.rows[0]?.position || 1),
   });
 });

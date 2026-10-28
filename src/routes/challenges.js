@@ -28,6 +28,7 @@ const auth   = require('../middleware/auth');
 const { notifyUser } = require('../lib/push');
 const R = require('../lib/challengeRules');
 const { recordOf, recordsByOpponent } = require('../lib/record');
+const { canChallenge } = require('../lib/challengeAccess');
 
 const nameOf = async (userId) => (await pool.query('SELECT name FROM users WHERE id = $1', [userId])).rows[0]?.name || '';
 
@@ -201,6 +202,10 @@ router.post('/', auth, async (req, res) => {
   const { rowCount: blocked } = await pool.query(
     'SELECT 1 FROM blocks WHERE (user_id = $1 AND blocked_id = $2) OR (user_id = $2 AND blocked_id = $1) LIMIT 1', [req.user.id, target.user_id]);
   if (blocked) return res.status(404).json({ error: 'Not found' });
+  // friends, or someone in the same rank (lib/challengeAccess.js)
+  if (!(await canChallenge(pool, req.user.id, target.user_id))) {
+    return res.status(403).json({ error: 'notallowed', message: 'You can challenge friends, and players in your rank' });
+  }
   if (spec.stake > 0) {
     const { rows: [me] } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
     if (!oldEnough(me?.created_at) || !oldEnough(target.created_at)) {

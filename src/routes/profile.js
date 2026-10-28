@@ -5,6 +5,7 @@ const { cleanCard } = require('../lib/publicCard');
 const { getRank } = require('./points');
 const { realName, NAMED } = require('../lib/names');
 const { recordOf } = require('../lib/record');
+const { canChallenge } = require('../lib/challengeAccess');
  
 router.get('/', auth, async (req, res) => {
   const { rows } = await pool.query(
@@ -99,6 +100,8 @@ router.get('/public/:id', auth, async (req, res) => {
     // challenges (lib/record.js): their wins / draws / losses, and theirs against the viewer
     record: await recordOf(pool, r.user_id),
     vsMe: r.me ? null : await recordOf(pool, r.user_id, req.user.id),
+    // a friend, or in the viewer's rank (lib/challengeAccess.js)
+    canChallenge: r.me ? false : await canChallenge(pool, req.user.id, r.user_id),
   });
 });
 
