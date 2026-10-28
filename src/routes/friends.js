@@ -1,9 +1,9 @@
-// Friends: players add each other by friend code or by name, and the other
-// side accepts. Friends show in Compete and as pins on the rank journey map.
+// Friends: players add each other by friend code (shared by the player, or
+// in their invite link; there's no name search, so strangers can't send
+// requests), and the other side accepts. Friends show in Compete and as pins on the rank journey map.
 //
 //   GET    /friends               { code, friends, incoming, outgoing }
-//   GET    /friends/search?q=     players by name (3+ letters; visible on the leaderboard)
-//   POST   /friends               { code } or { id: <public id> } send a request
+//   POST   /friends               { code } send a request
 //                                 (or accept theirs, when they already asked)
 //   POST   /friends/:id/accept    accept their request
 //   DELETE /friends/:id           remove a friend, decline theirs, or cancel mine
@@ -16,7 +16,6 @@ const pool   = require('../db');
 const { notifyUser } = require('../lib/push');
 const nameOf = async (userId) => (await pool.query('SELECT name FROM users WHERE id = $1', [userId])).rows[0]?.name || '';
 const auth   = require('../middleware/auth');
-const { NAMED } = require('../lib/names');
 
 const PUBLIC_ID = /^[0-9a-f]{32}$/;
 const CODE = /^(?:2S-?)?([0-9A-F]{6})$/i;
@@ -56,30 +55,11 @@ router.get('/', auth, async (req, res) => {
   });
 });
 
-router.get('/search', auth, async (req, res) => {
-  const q = String(req.query.q || '').trim().slice(0, 40);
-  if (q.length < 3) return res.json([]);
-  const { rows } = await pool.query(
-    `SELECT u.name, p.public_id, p.avatar_emoji, p.avatar_photo, ${EFFECTIVE} AS points
-     FROM profiles p JOIN users u ON u.id = p.user_id
-     WHERE NOT p.leaderboard_hidden AND ${NAMED('u')} AND p.user_id <> $1 AND u.name ILIKE $2
-     ORDER BY points DESC LIMIT 10`,
-    [req.user.id, `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`]);
-  res.json(rows.map(card));
-});
-
 router.post('/', auth, async (req, res) => {
   const me = req.user.id;
   const code = CODE.exec(String(req.body?.code || '').trim());
-  const id = String(req.body?.id || '');
-  let target;
-  if (code) {
-    ({ rows: [target] } = await pool.query('SELECT user_id FROM profiles WHERE friend_code = $1', [code[1].toUpperCase()]));
-  } else if (PUBLIC_ID.test(id)) {
-    ({ rows: [target] } = await pool.query('SELECT user_id FROM profiles WHERE public_id = $1 AND NOT leaderboard_hidden', [id]));
-  } else {
-    return res.status(400).json({ error: 'Invalid player' });
-  }
+  if (!code) return res.status(400).json({ error: 'Invalid code' });
+  const { rows: [target] } = await pool.query('SELECT user_id FROM profiles WHERE friend_code = $1', [code[1].toUpperCase()]);
   if (!target) return res.status(404).json({ error: 'notfound', message: 'No player with that code' });
   if (target.user_id === me) return res.status(400).json({ error: 'self', message: 'That\'s your own code' });
   const { rowCount: blocked } = await pool.query(
