@@ -127,3 +127,13 @@ test('App Check: monitor lets requests through, enforce refuses bad ones', async
   assert.deepEqual(await run(enforce, 'forged'), { passed: false, status: 401 });
   assert.deepEqual(await run(enforce, undefined, '/health'), { passed: true, status: null });
 });
+
+test('a forgotten workout told in words: the day, sets, sports, and never a weight made up', () => {
+  const { workoutTextPrompt } = require('../src/lib/aiText');
+  const p = workoutTextPrompt('chest yesterday, bench 3x8 at "60"', { today: '2026-10-28', weekday: 'Wednesday', units: 'lb' });
+  assert.ok(p.includes('Today is Wednesday 2026-10-28'));
+  assert.ok(p.includes('Weights are in lb'));
+  assert.ok(p.includes('never invent a weight'));
+  assert.ok(!p.includes('"60"'));                 // quotes in what they said can't break out
+  assert.ok(p.includes('"sports"'));
+});

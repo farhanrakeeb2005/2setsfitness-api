@@ -21,7 +21,7 @@ function parseJSON(text) {
   return JSON.parse(stripped);
 }
 
-const { langDirective, COACH_STYLE, splitCoachNote, clean, mealNoteDirective, foodTextPrompt } = require('../lib/aiText');
+const { langDirective, langName, COACH_STYLE, splitCoachNote, clean, mealNoteDirective, foodTextPrompt, workoutTextPrompt } = require('../lib/aiText');
 const { aiQuota } = require('../lib/aiQuota');
 
 // per-user daily caps on every AI call (src/lib/aiQuota.js), after the token check
@@ -285,6 +285,31 @@ router.post('/food-text', auth, quota('food-text'), async (req, res) => {
   } catch (err) {
     console.error('Food estimate failed:', err.message);
     res.status(500).json({ error: 'Food estimate failed' });
+  }
+});
+
+// ─── POST /ai/workout-text ───────────────────────────────────────────────────
+// Body: { text: "did chest yesterday, bench 3x8 at 60…", today: "2026-10-28",
+//   weekday: "Wednesday", units: "kg"|"lb", lang }
+// A workout or sport the user forgot to log, told in their own words (the app
+// can take it by voice through the phone keyboard's microphone): the day,
+// the exercises with sets, and sports, for the app to show and log.
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+router.post('/workout-text', auth, quota('workout-text'), async (req, res) => {
+  const text = clean(req.body?.text, 600);
+  if (!text) return res.status(400).json({ error: 'Nothing said' });
+  const today = DAY.test(String(req.body?.today || '')) ? req.body.today : new Date().toISOString().slice(0, 10);
+  const weekday = clean(req.body?.weekday, 12);
+  const units = req.body?.units === 'lb' ? 'lb' : 'kg';
+  try {
+    // (exercise and sport names stay English, so the app matches them to its own)
+    const ln = langName(req.body?.lang);
+    const langLine = ln === 'English' ? '' : `\nWrite only "title" and "unclear" in ${ln}; keep exercise and sport names and the JSON keys in English.`;
+    const raw = await ask(`${workoutTextPrompt(text, { today, weekday, units })}${langLine}`, 900);
+    res.json(parseJSON(raw));
+  } catch (err) {
+    console.error('Workout from text failed:', err.message);
+    res.status(500).json({ error: 'Could not read that workout' });
   }
 });
 
