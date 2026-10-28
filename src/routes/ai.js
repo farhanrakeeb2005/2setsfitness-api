@@ -129,7 +129,9 @@ No tables, no headings with #, no arrows, never use em dashes or en dashes.`;
 
 // ─── POST /ai/advice ─────────────────────────────────────────────────────────
 // Body: { question, profile }
-// Free-form fitness Q&A with user context.
+// Free-form fitness Q&A with user context. Only fitness: anything else gets
+// one line back to training (every answer is paid for), except a message
+// about harming themselves, which always gets a caring reply with help.
 router.post('/advice', auth, quota('advice'), async (req, res) => {
   const { question, profile = {}, lang } = req.body;
  
@@ -137,9 +139,10 @@ router.post('/advice', auth, quota('advice'), async (req, res) => {
 Athlete profile: goal=${profile.goal || 'general fitness'}, level=${profile.level || 'intermediate'}.
 Message: ${question}
 
-Most messages are about training, nutrition, recovery or health; answer those as their coach.
-If they ask about something else (a general knowledge question, a fact, a word, small talk), answer it correctly and briefly in 1-3 sentences, like a friendly coach would, then you may add one short line linking back to their training. Never refuse just because it isn't about fitness.
-Facts that can change (who holds an office, records, prices, recent events) may have changed since your training data: give what you know and say it was true as of your training if it might be out of date. If you don't know, say so; never make something up.
+Answer only what's in your job as their coach: training, exercises, form, programmes, sport, nutrition and food, sleep, recovery, injuries and pain, motivation, stress and mental wellbeing, and using this app. Answer those fully.
+If the message is about anything else (films, general knowledge, trivia, philosophy, coding, homework, small talk), don't answer it: reply with one short friendly sentence saying you're their fitness coach and can help with training, food, sleep or recovery, and nothing more. Don't add anything else to that reply.
+The one exception: if they say they want to die, harm themselves or can't go on, put training aside and answer with care: ask if they're safe, and point them to their local emergency number or a crisis line (US: call or text 988; UK and Ireland: Samaritans 116 123).
+If you don't know something, say so; never make something up.
 Any training context above is what the app logged for this athlete: trust those numbers, read "bodyweight" sets as sets done without added weight and "s hold" as seconds held, and don't question them unless asked.
 
 ${ADVICE_FORMAT}${langDirective(lang)}`;
