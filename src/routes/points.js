@@ -57,15 +57,19 @@ router.get('/', auth, async (req, res) => {
 const MAX_POINTS = 10_000_000;
 // Optional, for the leaderboard: avatar_emoji (a short string) or avatar_photo
 // (a small JPEG data URL), each null to clear; left out, kept as it is.
+// points left out: just the picture (a new account on 0 points; the app
+// never reports 0, which would wipe a total before its backup is back).
 const MAX_PHOTO = 40_000;   // chars of data URL (~30 KB): a 96 px thumbnail is ~5 KB
 router.put('/', auth, async (req, res) => {
-  const pts = Math.round(Number(req.body?.points));
-  if (!Number.isFinite(pts) || pts < 0 || pts > MAX_POINTS) return res.status(400).json({ error: 'Invalid points' });
+  const b = req.body || {};
+  const lookOnly = b.points === undefined;
+  const pts = Math.round(Number(b.points));
+  if (!lookOnly && (!Number.isFinite(pts) || pts < 0 || pts > MAX_POINTS)) return res.status(400).json({ error: 'Invalid points' });
+  if (lookOnly && !('avatar_emoji' in b) && !('avatar_photo' in b)) return res.status(400).json({ error: 'Nothing to save' });
   // the total, capped by the account's age (pointsCap.js), and the picture
   const { rows } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
-  const stored = cappedPoints(pts, rows[0]?.created_at);
-  const b = req.body || {};
-  const sets = ['points = $1'], vals = [stored];
+  const stored = lookOnly ? null : cappedPoints(pts, rows[0]?.created_at);
+  const sets = lookOnly ? [] : ['points = $1'], vals = lookOnly ? [] : [stored];
   if ('avatar_emoji' in b) {
     const e = b.avatar_emoji;
     if (e !== null && (typeof e !== 'string' || e.length > 16)) return res.status(400).json({ error: 'Invalid avatar' });
