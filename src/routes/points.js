@@ -59,7 +59,7 @@ const MAX_POINTS = 10_000_000;
 // (a small JPEG data URL), each null to clear; left out, kept as it is.
 // points left out: just the picture (a new account on 0 points; the app
 // never reports 0, which would wipe a total before its backup is back).
-const MAX_PHOTO = 40_000;   // chars of data URL (~30 KB): a 96 px thumbnail is ~5 KB
+const MAX_PHOTO = 220_000;   // chars of data URL (~160 KB): a 512 px photo, clear when viewed full screen
 router.put('/', auth, async (req, res) => {
   const b = req.body || {};
   const lookOnly = b.points === undefined;
