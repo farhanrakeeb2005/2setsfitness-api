@@ -93,14 +93,43 @@ test('meal notes and typed foods go to the AI as quoted descriptions', () => {
 });
 
 test('points are held to what the account age makes believable', () => {
-  const { DAILY_POINTS_CAP, pointsCap, cappedPoints } = require('../src/lib/pointsCap');
-  const now = Date.parse('2026-10-23T12:00:00Z');
-  assert.equal(pointsCap(new Date(now - 1000), now), DAILY_POINTS_CAP);          // made today: one day's worth
-  assert.equal(pointsCap(new Date(now - 10 * 864e5), now), 11 * DAILY_POINTS_CAP);
+  const { OLD_DAILY_POINTS_CAP: OLD, pointsCap, cappedPoints } = require('../src/lib/pointsCap');
+  const now = Date.parse('2026-10-23T12:00:00Z');   // before the cap changed: 2000 a day
+  assert.equal(OLD, 2000);
+  assert.equal(pointsCap(new Date(now - 1000), now), OLD);          // made today: one day's worth
+  assert.equal(pointsCap(new Date(now - 10 * 864e5), now), 11 * OLD);
   assert.equal(cappedPoints(579, new Date(now - 864e5), now), 579);               // a real total passes
-  assert.equal(cappedPoints(9_999_999, new Date(now - 864e5), now), 2 * DAILY_POINTS_CAP);
+  assert.equal(cappedPoints(9_999_999, new Date(now - 864e5), now), 2 * OLD);
   assert.equal(cappedPoints(-5, null, now), 0);
   assert.equal(cappedPoints(500, null, now), 500);                                // no created_at: counts from now
+});
+
+test('the daily points cap drops to 800 from 1 Nov 2026, days before keep 2000', () => {
+  const { DAILY_POINTS_CAP, CAP_CHANGED_FROM, pointsCap, cappedPoints } = require('../src/lib/pointsCap');
+  assert.equal(DAILY_POINTS_CAP, 800);
+  const D = 864e5;
+  // an account made after the change: 800 a day
+  const made = CAP_CHANGED_FROM + 5 * 3600e3;
+  assert.equal(pointsCap(made, made + 1000), 800);
+  assert.equal(pointsCap(made, made + 9.5 * D), 10 * 800);
+  assert.equal(cappedPoints(9000, made, made + 9.5 * D), 8000);
+  // made 10 days before the change, read 5 days after: 10 days at 2000, 6 at 800
+  const old = CAP_CHANGED_FROM - 10 * D;
+  assert.equal(pointsCap(old, CAP_CHANGED_FROM + 5 * D), 10 * 2000 + 6 * 800);
+  // a 10-day account holding 9,000 points before the change is never cut after it
+  const acct = CAP_CHANGED_FROM - 10 * D + 3600e3;
+  const before = cappedPoints(9000, acct, CAP_CHANGED_FROM - 1);
+  assert.equal(before, 9000);
+  for (let t = CAP_CHANGED_FROM; t < CAP_CHANGED_FROM + 30 * D; t += D / 3) {
+    assert.ok(pointsCap(acct, t) >= before);
+  }
+  // the cap never goes down as time passes
+  let prev = 0;
+  for (let t = acct; t < CAP_CHANGED_FROM + 5 * D; t += D / 7) {
+    const c = pointsCap(acct, t);
+    assert.ok(c >= prev);
+    prev = c;
+  }
 });
 
 test('App Check: monitor lets requests through, enforce refuses bad ones', async () => {
