@@ -13,3 +13,5 @@ test.js
 dbtest.js
 *.log
 .DS_Store
+# the tts service deploys on its own (tts/README.md)
+tts

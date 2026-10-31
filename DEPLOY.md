@@ -146,6 +146,9 @@ gcloud projects add-iam-policy-binding <PROJECT_ID> --member="serviceAccount:<PR
 | `AI_MODEL` | optional, default `claude-haiku-5-5`: the Claude model every `/ai/*` route uses (`src/lib/aiModel.js`). | env var |
 | `AI_CHAT_MODEL` | optional, defaults to `AI_MODEL`: the model for the coach chat (`/ai/advice`) only, e.g. `claude-sonnet-5-5` for sharper answers at about 20x the cost per reply. | env var |
 | `AI_SCAN_MODEL` | optional, default `claude-sonnet-5-5`: the model for the meal photo scan (`/ai/meal-scan`) only. Sonnet names dishes and judges portions much better than Haiku; set `claude-haiku-5-5` to go back to the cheaper one. | env var |
+| `TTS_URL` | optional: the private `tts` service's URL (`tts/README.md`). Unset: `POST /tts` answers 503 and the app uses the phone voice. | env var (`--update-env-vars`) |
+| `TTS_BUCKET` | optional, default `setsfitness-api-tts-cache`: the GCS bucket that caches rendered lines | env var |
+| `TTS_HOURLY_LIMIT` | optional, default 120: voice lines one user can request per hour | env var |
 | `APP_CHECK` | optional, default `monitor`: Firebase App Check (`src/middleware/appCheck.js`). `monitor` checks each request's `X-Firebase-AppCheck` token and logs how many are missing or invalid but lets them through; `enforce` refuses those (401); `off` skips it. Switch to `enforce` only once users have the App Check build from Google Play / the App Store and the log shows almost no missing tokens: copies installed outside Google Play fail Play Integrity. | env var |
 | `TRUST_PROXY` | optional. It's turned on automatically on Cloud Run (`K_SERVICE` is set there) so rate limits count real client IPs. | — |
 

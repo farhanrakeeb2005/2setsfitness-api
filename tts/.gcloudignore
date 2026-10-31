@@ -1,0 +1,7 @@
+# what `gcloud run deploy tts --source tts` does not upload
+.gcloudignore
+README.md
+__pycache__
+*.pyc
+*.mp3
+*.wav

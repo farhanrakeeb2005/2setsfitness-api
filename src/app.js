@@ -111,6 +111,8 @@ app.use('/account',          accountRoutes);
 app.use('/email',            emailRoutes);
 app.use('/contact',          contactRoutes);
 app.use('/news',             newsRoutes);
+// the coach's natural English voice (routes/tts.js; needs TTS_URL)
+app.use('/tts',              require('./routes/tts').defaultTtsRouter());
 
 app.get('/health', async (req, res) => {
   try {
