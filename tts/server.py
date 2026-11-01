@@ -27,8 +27,9 @@ MAX_BODY = 16 * 1024
 OUT_RATE = 22050
 BITRATE_KBPS = 48
 # voice -> (speaker id in kokoro-multi-lang-v1_0's voices.bin, espeak language)
-VOICES = {"af_heart": (3, "en-us")}
-DEFAULT_VOICE = "af_heart"
+VOICES = {"af_heart": (3, "en-us"), "am_santa": (19, "en-us")}
+# the coach is a yeti: a big, jolly voice (af_heart stays available)
+DEFAULT_VOICE = "am_santa"
 
 
 def validate(body):

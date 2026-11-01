@@ -13,7 +13,7 @@ test('text is tidied, and the limits hold', () => {
   assert.equal(normalizeText('  Last\n set.\t Go!  '), 'Last set. Go!');
   assert.equal(normalizeText('Café'), 'Café');   // NFC
   const ok = validateTts({ text: ' Drive  through your heels. ' });
-  assert.deepEqual(ok, { ok: true, value: { text: 'Drive through your heels.', voice: 'af_heart', speed: 1 } });
+  assert.deepEqual(ok, { ok: true, value: { text: 'Drive through your heels.', voice: 'am_santa', speed: 1 } });
   assert.ok(validateTts({ text: 'x'.repeat(MAX_CHARS) }).ok);
   assert.match(validateTts({ text: 'x'.repeat(MAX_CHARS + 1) }).error, /600/);
   assert.match(validateTts({ text: '   ' }).error, /text/);

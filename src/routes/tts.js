@@ -1,4 +1,4 @@
-// POST /tts { text, voice?: 'af_heart', speed?: 1 } -> { audio: <MP3, base64>, duration: s, cached }
+// POST /tts { text, voice?: 'am_santa' (default) | 'af_heart', speed?: 1 } -> { audio: <MP3, base64>, duration: s, cached }
 // The coach's natural English voice (src/lib/tts.js). Signed-in users only,
 // 120 lines an hour each. The app falls back to the phone's own voice on any
 // error, so failures here are quiet: 400 bad input, 503 not configured,

@@ -19,8 +19,9 @@
 const crypto = require('node:crypto');
 
 const MAX_CHARS = 600;
-const VOICES = ['af_heart'];
-const DEFAULT_VOICE = 'af_heart';
+const VOICES = ['af_heart', 'am_santa'];
+// the coach is a yeti: a big, jolly voice (af_heart stays available)
+const DEFAULT_VOICE = 'am_santa';
 // the tts service call: 8 s, plus time for longer lines (it renders at
 // roughly real time on 2 vCPUs, about 15 characters a second)
 const BASE_TIMEOUT_MS = 8000;

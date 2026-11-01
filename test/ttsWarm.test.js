@@ -148,7 +148,7 @@ test('prewarm: the app\'s lines get the route\'s tidy-up and cache key, once eac
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prewarm-'));
   const file = path.join(dir, 'lines.json');
   fs.writeFileSync(file, JSON.stringify({
-    voice: 'af_heart',
+    voice: 'am_santa',
     speed: 1,
     lines: [
       { text: 'Last  set.', from: 'a' },
