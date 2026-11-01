@@ -24,7 +24,7 @@ const DAY_KM = { run: 100, cycle: 400, swim: 20 };
 // of one person can't pass points between them)
 const WEEKLY_FROM_ONE = 100;
 // both players' accounts this old to play for points
-const STAKE_MIN_AGE_DAYS = 7;
+const STAKE_MIN_AGE_DAYS = 3;
 
 // the targets on offer; reps match the exercise names the app logs
 const TARGETS = {
