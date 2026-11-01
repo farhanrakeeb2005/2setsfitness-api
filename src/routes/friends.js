@@ -25,6 +25,8 @@ const EFFECTIVE = 'GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts,
 const card = (r) => ({
   id: r.public_id, name: r.name, points: Number(r.points) || 0,
   avatarEmoji: r.avatar_emoji || null, avatarPhoto: r.avatar_photo || null,
+  // when the friendship began (the later of the two rows): the app's "you're now friends"
+  ...(r.since ? { since: new Date(r.since).getTime() } : {}),
 });
 
 const codeOf = async (userId) =>
@@ -35,7 +37,9 @@ router.get('/', auth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT u.name, p.public_id, p.avatar_emoji, p.avatar_photo, ${EFFECTIVE} AS points,
             EXISTS (SELECT 1 FROM friends f WHERE f.user_id = $1 AND f.friend_id = p.user_id) AS mine,
-            EXISTS (SELECT 1 FROM friends f WHERE f.user_id = p.user_id AND f.friend_id = $1) AS theirs
+            EXISTS (SELECT 1 FROM friends f WHERE f.user_id = p.user_id AND f.friend_id = $1) AS theirs,
+            (SELECT MAX(f.created_at) FROM friends f
+              WHERE (f.user_id = $1 AND f.friend_id = p.user_id) OR (f.user_id = p.user_id AND f.friend_id = $1)) AS since
      FROM profiles p JOIN users u ON u.id = p.user_id
      WHERE p.user_id IN (SELECT friend_id FROM friends WHERE user_id = $1 UNION SELECT user_id FROM friends WHERE friend_id = $1)
        AND p.user_id <> $1
