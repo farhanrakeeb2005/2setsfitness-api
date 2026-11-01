@@ -24,7 +24,10 @@ const DAY_KM = { run: 100, cycle: 400, swim: 20 };
 // of one person can't pass points between them)
 const WEEKLY_FROM_ONE = 100;
 // both players' accounts this old to play for points
-const STAKE_MIN_AGE_DAYS = 3;
+const STAKE_MIN_AGE_DAYS = 3;   // (no longer checked: see STAKE_MIN_LOGS)
+// points can go on a challenge once both players have logged this many
+// workouts or sports (real use, not just an old account)
+const STAKE_MIN_LOGS = 3;
 
 // the targets on offer; reps match the exercise names the app logs
 const TARGETS = {
@@ -153,6 +156,6 @@ function transfer(stake, loserPoints, wonFromThemThisWeek) {
 }
 
 module.exports = {
-  KINDS, DAYS, STAKES, TARGETS, FORFEIT_MAX, SET_REPS, DAY_REPS, WEEKLY_FROM_ONE, STAKE_MIN_AGE_DAYS,
+  KINDS, DAYS, STAKES, TARGETS, FORFEIT_MAX, SET_REPS, DAY_REPS, WEEKLY_FROM_ONE, STAKE_MIN_AGE_DAYS, STAKE_MIN_LOGS,
   cleanSpec, progress, decide, transfer, goalOf,
 };

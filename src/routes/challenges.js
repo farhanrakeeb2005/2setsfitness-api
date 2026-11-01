@@ -42,7 +42,11 @@ const EFFECTIVE = 'GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0))
 const effectivePoints = async (db, userId) =>
   Number((await db.query(`SELECT ${EFFECTIVE} AS p FROM profiles WHERE user_id = $1`, [userId])).rows[0]?.p || 0);
 
-const oldEnough = (createdAt) => !createdAt || Date.now() - new Date(createdAt).getTime() >= R.STAKE_MIN_AGE_DAYS * DAY_MS;
+// a player who has logged enough workouts or sports to play for points
+const activeEnough = async (userId) => {
+  const l = await logsOf(userId);
+  return l.history.length + l.sports.length >= R.STAKE_MIN_LOGS;
+};
 
 const specOf = (c) => ({ kind: c.kind || 'points', days: c.days || 7, stake: c.stake || 0, target: c.target, routine: c.routine });
 
@@ -207,9 +211,9 @@ router.post('/', auth, async (req, res) => {
     return res.status(403).json({ error: 'notallowed', message: 'You can challenge friends, and players in your rank' });
   }
   if (spec.stake > 0) {
-    const { rows: [me] } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
-    if (!oldEnough(me?.created_at) || !oldEnough(target.created_at)) {
-      return res.status(403).json({ error: 'new', message: `Points can be put on a challenge once both accounts are ${R.STAKE_MIN_AGE_DAYS} days old` });
+    const [mine, theirs] = await Promise.all([activeEnough(req.user.id), activeEnough(target.user_id)]);
+    if (!mine || !theirs) {
+      return res.status(403).json({ error: 'new', message: `Points can be put on a challenge once both players have logged ${R.STAKE_MIN_LOGS} workouts or sports` });
     }
     if (await effectivePoints(pool, req.user.id) < spec.stake) {
       return res.status(403).json({ error: 'points', message: 'You don\'t have that many points to put on it' });
@@ -300,9 +304,8 @@ router.post('/:id/respond', auth, async (req, res) => {
       `SELECT stake FROM challenges WHERE id = $1 AND to_user = $2 AND status = 'pending'`, [id, req.user.id]);
     if (!c) return res.status(404).json({ error: 'Not found' });
     if (c.stake > 0) {
-      const { rows: [me] } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
-      if (!oldEnough(me?.created_at)) {
-        return res.status(403).json({ error: 'new', message: `Points can be put on a challenge once both accounts are ${R.STAKE_MIN_AGE_DAYS} days old` });
+      if (!(await activeEnough(req.user.id))) {
+        return res.status(403).json({ error: 'new', message: `Points can be put on a challenge once both players have logged ${R.STAKE_MIN_LOGS} workouts or sports` });
       }
       if (await effectivePoints(pool, req.user.id) < c.stake) {
         return res.status(403).json({ error: 'points', message: 'You don\'t have that many points to put on it' });
