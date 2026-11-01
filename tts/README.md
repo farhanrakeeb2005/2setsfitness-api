@@ -17,8 +17,14 @@ app ──POST /tts {text}──▶ API (twosetsfitness-api)
   characters; the only voice is `af_heart` (`VOICES` in `server.py`); `lang` must be `en-us`.
 - `GET /healthz` → `ok`.
 - The API answers the app with `{ audio: <base64 MP3>, duration, cached }` (`src/routes/tts.js`).
-  The app falls back to the phone's own voice when that fails, takes longer than 3 s,
-  is offline, the text isn't English, or Settings → Coach voice is "Phone voice".
+- `POST /tts/warm` (API, signed in, 30/hour each): the app's wake-up call on start and back in
+  the foreground (at most every 5 min): tts says "Ready.", nothing stored, so a cold instance
+  has its model loaded before the coach speaks. No always-on instance needed.
+- The app keeps one voice per speech session (a tour, a check-in, a workout: lines < 2 min
+  apart): once Heart has played, a slow line waits (12 s for the first after a wake-up, then
+  6 s) and is skipped rather than said by the phone. Offline / a server error, or a cold server
+  nobody woke (3 s), puts that session on the phone's voice until it ends. Not English, or
+  Settings → Coach voice "Phone voice": always the phone (`formcoach-app src/lib/serverVoice.js`).
 
 ## Files
 
@@ -101,6 +107,23 @@ gcloud run services describe twosetsfitness-api --region europe-west2 --project 
 
 Keep the image storage small: the Artifact Registry cleanup policy in DEPLOY.md
 (keep 2) covers the `tts` images too; each is about 0.6 GB.
+
+## Pre-render the app's fixed lines (once, and after the app's spoken lines change)
+
+The app lists every fixed English line it speaks (tours, rep cues, timers, rank-up and boss
+lines) in `formcoach-app/scripts/tts_lines.json` (`node scripts/build_tts_lines.mjs` there).
+`scripts/prewarm_tts.js` renders the ones not yet cached into the bucket with the route's cache
+key, so they play at once. About 400 lines, ~10 minutes, well under £0.20. PowerShell:
+```powershell
+gcloud auth login                                   # an account that may call tts (an owner)
+gcloud auth application-default login               # for the bucket writes
+$env:TTS_URL = gcloud run services describe tts --region europe-west2 --project setsfitness-api --format="value(status.url)"
+node scripts/prewarm_tts.js --dry-run               # count + samples, no network
+node scripts/prewarm_tts.js                         # renders what isn't cached
+Remove-Item Env:TTS_URL
+```
+Run again any time: cached lines are skipped (`--force` renders them again). The 90-day bucket
+rule deletes them eventually; re-run it every couple of months, or after a release.
 
 ## Cost (rough, at a handful of users)
 

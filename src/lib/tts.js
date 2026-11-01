@@ -5,10 +5,13 @@
 //
 //   validateTts(body)        -> { ok, value: { text, voice, speed } } | { error }
 //   cacheKey(value)          -> sha256 hex of `voice|speed|text`
-//   createTtsService({ store, synth, log }) -> { get(value) }
+//   createTtsService({ store, synth, log }) -> { get(value), warm() }
 //     store: { read(key) -> { audio: Buffer, duration } | null, write(key, audio, duration) }
 //     synth(value) -> { audio: Buffer, duration }
+//     warm(): has the tts service say one short word, not stored: a cold
+//       instance loads its model (~10 s) before the app's lines need it
 //   gcsStore(bucketName), ttsServiceSynth(url) : the real store and synth
+//     (gcsStore also has exists(key), for scripts/prewarm_tts.js)
 //
 // Env: TTS_URL (the tts service's URL; unset -> /tts answers 503),
 // TTS_BUCKET (default setsfitness-api-tts-cache), TTS_NO_AUTH=1 (local
@@ -55,8 +58,34 @@ function cacheKey({ voice, speed, text }) {
   return crypto.createHash('sha256').update(`${voice}|${Number(speed).toFixed(2)}|${text}`).digest('hex');
 }
 
-function createTtsService({ store, synth, log = console }) {
+// warm(): the word said, and how long a just-woken service counts as awake
+// here (calls in that time answer at once, without touching the service)
+const WARM_TEXT = 'Ready.';
+const WARM_FRESH_MS = 60 * 1000;
+// a cold start: the model load (~10 s, up to ~20 s) and the word itself
+const WARM_TIMEOUT_MS = 28000;
+
+function createTtsService({ store, synth, log = console, now = Date.now }) {
   const inFlight = new Map();   // key -> promise: the same line asked twice at once renders once
+  let warming = null;           // the wake-up in progress
+  let warmAt = 0;               // the last one that worked
+
+  // -> { warm: true, ms, fresh: whether the service was asked now }
+  async function warm() {
+    if (warmAt && now() - warmAt < WARM_FRESH_MS) return { warm: true, ms: 0, fresh: false };
+    if (!warming) {
+      const t0 = now();
+      warming = Promise.resolve()
+        .then(() => synth({ text: WARM_TEXT, voice: DEFAULT_VOICE, speed: 1, timeoutMs: WARM_TIMEOUT_MS }))
+        .then((out) => {
+          if (!out?.audio?.length) throw new Error('tts returned no audio');
+          warmAt = now();
+          return { warm: true, ms: warmAt - t0, fresh: true };
+        })
+        .finally(() => { warming = null; });
+    }
+    return warming;
+  }
 
   async function render(key, value) {
     const out = await synth(value);
@@ -83,7 +112,7 @@ function createTtsService({ store, synth, log = console }) {
     return inFlight.get(key);
   }
 
-  return { get, inFlightCount: () => inFlight.size };
+  return { get, warm, inFlightCount: () => inFlight.size };
 }
 
 // ---- the real store and synth (not loaded by the tests) ----
@@ -94,6 +123,10 @@ function gcsStore(bucketName = process.env.TTS_BUCKET || 'setsfitness-api-tts-ca
   const { Storage } = require('@google-cloud/storage');
   const bucket = new Storage().bucket(bucketName);
   return {
+    async exists(key) {
+      const [yes] = await bucket.file(objectName(key)).exists();
+      return yes;
+    },
     async read(key) {
       const file = bucket.file(objectName(key));
       try {
@@ -114,11 +147,15 @@ function gcsStore(bucketName = process.env.TTS_BUCKET || 'setsfitness-api-tts-ca
   };
 }
 
-function ttsServiceSynth(url = process.env.TTS_URL, { noAuth = process.env.TTS_NO_AUTH === '1' } = {}) {
+// getToken: () -> an ID token for the service (scripts/prewarm_tts.js, run on
+// a PC: `gcloud auth print-identity-token`); default: from the metadata
+// server, as the API's service account
+function ttsServiceSynth(url = process.env.TTS_URL, { noAuth = process.env.TTS_NO_AUTH === '1', getToken = null } = {}) {
   const base = String(url || '').replace(/\/+$/, '');
   let idClient = null;
   async function authHeader() {
     if (noAuth) return {};
+    if (getToken) return { Authorization: `Bearer ${await getToken()}` };
     if (!idClient) {
       const { GoogleAuth } = require('google-auth-library');
       // Cloud Run: an ID token for the tts service, from the metadata server
@@ -128,12 +165,13 @@ function ttsServiceSynth(url = process.env.TTS_URL, { noAuth = process.env.TTS_N
     const value = typeof h?.get === 'function' ? h.get('authorization') : (h?.Authorization || h?.authorization);
     return value ? { Authorization: value } : {};
   }
-  return async function synth({ text, voice, speed }) {
+  // timeoutMs: the wake-up's own (a cold start loads the model first)
+  return async function synth({ text, voice, speed, timeoutMs }) {
     const res = await fetch(`${base}/synth`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
       body: JSON.stringify({ text, voice, speed, lang: 'en-us' }),
-      signal: AbortSignal.timeout(timeoutFor(text)),
+      signal: AbortSignal.timeout(timeoutMs || timeoutFor(text)),
     });
     if (!res.ok) throw new Error(`tts service: HTTP ${res.status}`);
     const audio = Buffer.from(await res.arrayBuffer());
@@ -142,6 +180,6 @@ function ttsServiceSynth(url = process.env.TTS_URL, { noAuth = process.env.TTS_N
 }
 
 module.exports = {
-  MAX_CHARS, VOICES, normalizeText, validateTts, cacheKey, timeoutFor,
+  MAX_CHARS, VOICES, WARM_TEXT, WARM_FRESH_MS, normalizeText, validateTts, cacheKey, timeoutFor,
   createTtsService, gcsStore, ttsServiceSynth,
 };
