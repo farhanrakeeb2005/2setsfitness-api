@@ -44,9 +44,9 @@ test('empty: nothing, only spaces, only symbols or emoji', () => {
 test('short and long', () => {
   assert.equal(reason('J'), 'short');
   assert.equal(reason('李'), 'short');
-  assert.equal(reason('A'.repeat(25)), 'long');
-  assert.equal(reason('Mohammed Abdulrahman Salih'), 'long');
-  assert.equal(reason('A'.repeat(24)), null);
+  assert.equal(reason('Mohammed Abdulrahman Salih'), null);
+  assert.equal(reason('A'.repeat(41)), 'long');
+  assert.equal(reason('A'.repeat(40)), null);
 });
 
 test('symbols: emoji in a name, other punctuation, no letter at all', () => {

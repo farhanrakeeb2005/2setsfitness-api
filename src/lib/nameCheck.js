@@ -15,7 +15,7 @@
 //     'reserved'  looks official: admin, moderator, 2SetsFitness, ...
 //     'contact'   a link, @handle, email address or phone number
 //     'short'     under 2 characters
-//     'long'      over 24 characters
+//     'long'      over 40 characters
 //     'symbols'   characters a name doesn't have (emoji, #, !, ...), or no
 //                 letter at all ("1234")
 //
@@ -30,7 +30,7 @@
 // real names or surnames that are also slang somewhere.
 
 const NAME_MIN = 2;
-const NAME_MAX = 24;
+const NAME_MAX = 40;
 const NAME_REASONS = ['empty', 'offensive', 'reserved', 'contact', 'short', 'long', 'symbols'];
 
 // invisible characters that only hide things (zero-width space, BOM, word
