@@ -1,7 +1,7 @@
 // Who can challenge whom: friends, or two players in the same rank (the
 // leaderboard's "your rank" list, routes/points.js). A stranger in another
 // rank can only be looked at.
-const { getRank } = require('../routes/points');
+const { getRank } = require('./ranks');
 
 const { EFFECTIVE_SQL: EFFECTIVE } = require('./sql');
 
