@@ -300,7 +300,8 @@ router.post('/workout-text', auth, quota('workout-text'), async (req, res) => {
   if (!text) return res.status(400).json({ error: 'Nothing said' });
   const today = DAY.test(String(req.body?.today || '')) ? req.body.today : new Date().toISOString().slice(0, 10);
   const weekday = clean(req.body?.weekday, 12);
-  const units = req.body?.units === 'lb' ? 'lb' : 'kg';
+  // (the app's profile says 'lbs'; older builds sent it as is)
+  const units = req.body?.units === 'lb' || req.body?.units === 'lbs' ? 'lb' : 'kg';
   try {
     // (exercise and sport names stay English, so the app matches them to its own)
     const ln = langName(req.body?.lang);

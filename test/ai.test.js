@@ -166,3 +166,14 @@ test('a forgotten workout told in words: the day, sets, sports, and never a weig
   assert.ok(!p.includes('"60"'));                 // quotes in what they said can't break out
   assert.ok(p.includes('"sports"'));
 });
+
+test('a forgotten workout: how "1 x 70", "70kg x 5" and "then 1 x 75" read, and the app\'s "lbs"', () => {
+  const { workoutTextPrompt } = require('../src/lib/aiText');
+  const p = workoutTextPrompt('bench 1 x 70 then 1 x 75', { today: '2026-11-02', weekday: 'Monday', units: 'lbs' });
+  assert.ok(p.includes('Weights are in lb; a weight they give in kg is converted to lb'));
+  assert.ok(p.includes('"1 x 70"'));
+  assert.ok(p.includes('"70kg x 5"'));
+  assert.ok(p.includes('more sets of the exercise just named'));
+  assert.ok(p.includes('one entry in "sets" per set done'));
+  assert.ok(workoutTextPrompt('x', { units: 'kg' }).includes('Weights are in kg; a weight they give in lb'));
+});
