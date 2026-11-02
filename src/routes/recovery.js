@@ -1,18 +1,11 @@
+// POST /recovery: a mirror write the app still fires after a recovery check-in
+// (HomeScreen, fire-and-forget). Nothing on the server reads recovery_logs any
+// more (the app keeps its own data and backs up to Firestore); the route stays
+// so current and recent builds get a 201 instead of a 404.
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
 
-// GET /recovery?limit=30
-router.get('/', auth, async (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 30, 90);
-  const { rows } = await pool.query(
-    'SELECT * FROM recovery_logs WHERE user_id=$1 ORDER BY logged_at DESC LIMIT $2',
-    [req.user.id, limit]
-  );
-  res.json(rows);
-});
-
-// POST /recovery
 router.post('/', auth, async (req, res) => {
   const { score, sleepHours, soreness, note } = req.body;
   if (score == null) return res.status(400).json({ error: 'score required' });

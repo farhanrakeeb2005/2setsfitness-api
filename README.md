@@ -43,19 +43,14 @@ All routes except `/health` and the email unsubscribe link require an `Authoriza
 | Resource            | Base Route            | Methods              |
 |----------------------|------------------------|------------------------|
 | Profile               | `/profile`               | GET, PUT; PUT `/card` (public card), GET `/public/:id` (a player's public profile) |
-| Routines               | `/routines`               | GET, POST, PUT `/:id`, DELETE `/:id` |
-| Workout History         | `/history`                | GET, POST, DELETE `/:id` |
-| Leaderboard             | `/leaderboard`            | GET, POST `/submit`      |
 | Points                  | `/points`                 | GET, PUT (the app's own total and leaderboard picture), GET `/leaderboard` (rows carry public ids) |
-| Personal Records         | `/personal-records`        | GET, PUT                |
-| Form Scores              | `/form-scores`             | GET, POST                |
-| Body Weight              | `/body`                    | GET, POST                |
-| Recovery                 | `/recovery`                 | GET, POST                |
-| Nutrition                 | `/nutrition`                | GET, POST                |
-| Sports                    | `/sports`                    | GET, POST                |
-| Water Intake                | `/water`                     | GET, PUT                |
-| Weekly Schedule              | `/schedule`                   | GET, PUT                |
+| Recovery (legacy mirror)   | `/recovery`                 | POST                |
+| Nutrition (legacy mirror)  | `/nutrition`                | POST                |
+| Sports (legacy mirror)     | `/sports`                    | POST                |
+| Weekly Schedule (legacy mirror) | `/schedule`             | PUT                |
 | Cloud Backup (app data)      | `/sync`                       | GET `?since=<ms>`, PUT, DELETE |
+
+The legacy mirror writes are still fired (fire-and-forget) by the app; nothing reads them back. The old `/routines`, `/history`, `/leaderboard`, `/personal-records`, `/form-scores`, `/body` and `/water` routes and the GETs of the mirrors were removed (no app build since 2026-08-25 calls them; the app keeps its own data and backs up to Firestore). Their tables stay in `db/schema.sql`.
 
 (The app now backs up to Firestore directly and no longer calls `/sync`; the routes stay for older builds.) `/sync` keeps one JSON document per user and collection (routines, history, logs, schedule, profile, fighter… — see `src/lib/syncMerge.js`). A PUT is merged into the stored copy with the app's own rules (union by id, newer copy wins, deletions only by tombstone), so a phone with less data can't wipe the backup. Bodies up to 5 MB, 3 MB per collection, 60 requests/min per user. `npm test` runs its tests against an in-memory database (no secrets needed).
 
