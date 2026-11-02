@@ -13,8 +13,8 @@ router.post('/', auth, async (req, res) => {
     'INSERT INTO recovery_logs (user_id, score, sleep_hours, soreness, note) VALUES ($1,$2,$3,$4,$5) RETURNING *',
     [req.user.id, score, sleepHours ?? null, soreness ?? null, note ?? null]
   );
-  // (points: the app works out its own total and reports it, PUT /points)
-  res.status(201).json({ ...rows[0], points_earned: 20 });
+  // (no points here: the app works out its own total and reports it, PUT /points)
+  res.status(201).json(rows[0]);
 });
 
 module.exports = router;

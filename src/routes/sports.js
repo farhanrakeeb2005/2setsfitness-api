@@ -14,9 +14,8 @@ router.post('/', auth, async (req, res) => {
     'INSERT INTO sports_logs (user_id, sport, emoji, duration, calories) VALUES ($1,$2,$3,$4,$5) RETURNING *',
     [req.user.id, sport, emoji ?? null, duration, calories]
   );
-  const pts = 20 + Math.min(duration, 120);
-  // (points: the app works out its own total and reports it, PUT /points)
-  res.status(201).json({ ...rows[0], points_earned: pts });
+  // (no points here: the app works out its own total and reports it, PUT /points)
+  res.status(201).json(rows[0]);
 });
 
 module.exports = router;
