@@ -15,7 +15,7 @@
 
 const KINDS = ['points', 'target', 'routine'];
 const DAYS = [1, 3, 7, 14];
-const STAKES = [0, 10, 25, 50, 100];
+const STAKES = [0, 25, 50, 100];
 const FORFEIT_MAX = 60;
 const SET_REPS = 100;
 const DAY_REPS = 1000;
