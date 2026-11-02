@@ -167,7 +167,21 @@ test('DELETE removes only the caller\'s backup', async () => {
   assert.equal((await call('GET', '/sync?since=0', 'u7')).data.collections.history.items[0].id, 'b');
 });
 
-test('the server\'s merge matches the app\'s rules for every kind', () => {
+test('frozen: only the collections the /sync-era app (1.3.19) sent; the later ones are refused', async () => {
+  const { COLLECTIONS } = require('../src/lib/syncMerge');
+  assert.deepEqual(Object.keys(COLLECTIONS).sort(), ['bodyWeights', 'fighter', 'formScores', 'history', 'measurements',
+    'nutrition', 'pointsBank', 'prefs', 'profile', 'prs', 'recovery', 'routines', 'schedule', 'seededRoutines', 'sports', 'water']);
+  assert.equal(COLLECTIONS.water.kind, 'maxMap', 'those builds send water as { day: cups }');
+  const later = ['painLog', 'savedMeals', 'steps', 'streakDays', 'appDays', 'questsDone'];
+  const body = { collections: Object.fromEntries(later.map((n) => [n, { items: [], data: {} }])) };
+  const r = await call('PUT', '/sync', 'u8', body);
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.collections, {});
+  assert.deepEqual(Object.keys(r.data.errors).sort(), [...later].sort());
+  assert.ok(Object.values(r.data.errors).every((e) => e === 'unknown collection'));
+});
+
+test('the server\'s merge matches the /sync-era app\'s rules for every kind', () => {
   assert.deepEqual(mergeCollection('prs', { data: { Squat: { weight: 90 } } }, { data: { Squat: { weight: 100 } } }).data, { Squat: { weight: 100 } });
   assert.equal(mergeCollection('profile', { data: { a: 1 }, updatedAt: 2 }, { data: { a: 0, b: 2 }, updatedAt: 1 }).data.b, 2);
   assert.deepEqual(mergeCollection('seededRoutines', { data: ['r1'] }, null).data, ['r1']);

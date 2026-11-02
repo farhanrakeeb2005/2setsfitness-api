@@ -8,9 +8,11 @@
 //                            stored copies -> { collections: merged, errors, serverTime }
 //   DELETE /sync             removes the user's backup
 //
-// A PUT never replaces the stored copy: it is merged into it with the same
-// rules the app uses (union by id, the newer copy wins, deletions only by
-// tombstone), so a phone with less data can't wipe the backup.
+// A PUT never replaces the stored copy: it is merged into it with the rules
+// of the app builds that wrote here (union by id, the newer copy wins,
+// deletions only by tombstone), so a phone with less data can't wipe the
+// backup. Those rules are frozen (lib/syncMerge.js says why): current app
+// builds back up to Firestore and don't call /sync.
 const express = require('express');
 const { COLLECTIONS, mergeCollection } = require('../lib/syncMerge');
 

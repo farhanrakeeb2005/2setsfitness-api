@@ -1,5 +1,17 @@
-// Merge rules for the app's cloud backup (routes/sync.js). The app runs the
-// same rules (formcoach-app src/lib/syncMerge.js): keep the two in step.
+// Merge rules for the old /sync cloud backup (routes/sync.js). FROZEN: do
+// not copy the app's newer src/lib/syncMerge.js over this file.
+//
+// Only app 1.3.19 builds between formcoach-app commits 9ccad57 and ab11b4a
+// (2026-10-20, about an hour) ever wrote to /sync; every build since backs up
+// to Firestore and never calls it. These rules are byte for byte the ones
+// those builds merge with (formcoach-app 5ccc7c1:src/lib/syncMerge.js), so the
+// server and its only writers agree. The app's later collections (painLog,
+// savedMeals, steps, streakDays, appDays, questsDone) and its later rules
+// (water as newest-count-per-day, newerStreak, achievementsSeen union, PRs by
+// updatedAt) live only in Firestore: /sync refuses those collections as
+// 'unknown collection', so it can't hold or undo them. What /sync still
+// holds is read by routes/challenges.js (history and sports, for races).
+//
 // A merge never drops an item just because one side doesn't have it; only a
 // deletion (a tombstone) at least as new as the item removes it.
 //
