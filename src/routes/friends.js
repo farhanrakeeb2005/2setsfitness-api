@@ -26,10 +26,10 @@ async function senderOf(userId, open) {
 }
 const auth   = require('../middleware/auth');
 
-const PUBLIC_ID = /^[0-9a-f]{32}$/;
 const CODE = /^(?:2S-?)?([0-9A-F]{6})$/i;
 const MAX_FRIENDS = 200;
-const EFFECTIVE = 'GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0))';
+const { effectiveSql, PUBLIC_ID } = require('../lib/sql');
+const EFFECTIVE = effectiveSql('p');
 
 const card = (r) => ({
   id: r.public_id, name: shownName(r.name, r.public_id), points: Number(r.points) || 0,

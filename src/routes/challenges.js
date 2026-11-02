@@ -30,6 +30,7 @@ const R = require('../lib/challengeRules');
 const { recordOf, recordsByOpponent } = require('../lib/record');
 const { canChallenge } = require('../lib/challengeAccess');
 const { shownName } = require('../lib/names');
+const { EFFECTIVE_SQL: EFFECTIVE, PUBLIC_ID } = require('../lib/sql');
 
 // a player's name as others see it (lib/names.js shownName)
 const nameOf = async (userId) => {
@@ -39,12 +40,10 @@ const nameOf = async (userId) => {
 };
 
 const MAX_OPEN_SENT = 5;            // pending or running challenges one player has sent
-const PUBLIC_ID = /^[0-9a-f]{32}$/;
-const CHALLENGE_ID = /^[0-9a-f]{32}$/;
+const CHALLENGE_ID = /^[0-9a-f]{32}$/;   // (the same shape as a public id, lib/sql.js)
 const DAY_MS = 864e5;
 
 // a player's points as the leaderboard counts them: the app's total and the challenges' net
-const EFFECTIVE = 'GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0))';
 const effectivePoints = async (db, userId) =>
   Number((await db.query(`SELECT ${EFFECTIVE} AS p FROM profiles WHERE user_id = $1`, [userId])).rows[0]?.p || 0);
 

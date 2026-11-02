@@ -181,6 +181,6 @@ function ttsServiceSynth(url = process.env.TTS_URL, { noAuth = process.env.TTS_N
 }
 
 module.exports = {
-  MAX_CHARS, VOICES, WARM_TEXT, WARM_FRESH_MS, normalizeText, validateTts, cacheKey, timeoutFor,
+  MAX_CHARS, WARM_TEXT, WARM_FRESH_MS, normalizeText, validateTts, cacheKey, timeoutFor,
   createTtsService, gcsStore, ttsServiceSynth,
 };

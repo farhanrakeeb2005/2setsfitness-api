@@ -3,7 +3,7 @@
 // rank can only be looked at.
 const { getRank } = require('../routes/points');
 
-const EFFECTIVE = 'GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0))';
+const { EFFECTIVE_SQL: EFFECTIVE } = require('./sql');
 
 /** the rank's points range: { name, min, max } (max null for the top rank) */
 function rankBounds(points) {
@@ -23,4 +23,4 @@ async function canChallenge(db, a, b) {
   return rankBounds(r?.pa).name === rankBounds(r?.pb).name;
 }
 
-module.exports = { rankBounds, canChallenge };
+module.exports = { canChallenge };

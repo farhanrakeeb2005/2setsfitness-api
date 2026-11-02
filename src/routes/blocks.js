@@ -9,7 +9,7 @@ const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { shownName } = require('../lib/names');
 
-const PUBLIC_ID = /^[0-9a-f]{32}$/;
+const { PUBLIC_ID } = require('../lib/sql');
 
 router.get('/', auth, async (req, res) => {
   const { rows } = await pool.query(

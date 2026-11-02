@@ -97,4 +97,4 @@ Return ONLY valid JSON, no markdown fences:
 "minutes" is how long the gym session was (0 if not said). "intensity" is "light", "moderate" or "hard". "unclear": one short question if something important is missing or you could not tell what they did, else "". If it is not a workout or sport at all, return {"date":"${today || ''}","title":"","minutes":0,"exercises":[],"sports":[],"unclear":"What did you do?"}.`;
 }
 
-module.exports = { workoutTextPrompt, mealNoteDirective, foodTextPrompt, LANG_NAMES, langName, langDirective, COACH_STYLE, splitCoachNote, clean };
+module.exports = { workoutTextPrompt, mealNoteDirective, foodTextPrompt, langName, langDirective, COACH_STYLE, splitCoachNote, clean };

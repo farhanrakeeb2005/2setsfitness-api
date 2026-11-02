@@ -3,7 +3,7 @@ const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { NAMED, shownName } = require('../lib/names');
 const { cappedPoints } = require('../lib/pointsCap');
-const { cleanPhoto, cleanEmoji } = require('../lib/publicCard');
+const { effectiveSql, EFFECTIVE_SQL } = require('../lib/sql');
 
 // as the app's src/lib/ranks.js (BOSSES[].min, icon): keep the two in step
 const RANKS = [
@@ -43,7 +43,7 @@ function getRank(points) {
 // GET /points — current user's points + rank
 router.get('/', auth, async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) AS points FROM profiles WHERE user_id = $1',
+    `SELECT ${EFFECTIVE_SQL} AS points FROM profiles WHERE user_id = $1`,
     [req.user.id]
   );
   const points = rows[0]?.points ?? 0;
@@ -84,7 +84,7 @@ router.put('/', auth, async (req, res) => {
   }
   vals.push(req.user.id);
   const { rows: [after] } = await pool.query(`UPDATE profiles SET ${sets.join(', ')} WHERE user_id = $${vals.length}
-    RETURNING GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) AS points`, vals);
+    RETURNING ${EFFECTIVE_SQL} AS points`, vals);
   // (with what challenges won or lost: the leaderboard's figure)
   const shown = Number(after?.points ?? stored);
   res.json({ points: shown, rank: getRank(shown) });
@@ -101,7 +101,7 @@ router.put('/', auth, async (req, res) => {
 // ?scope=rank: only the players in the caller's rank (its points range), up
 // to 50, the ones they can challenge (lib/challengeAccess.js); rankName says which.
 router.get('/leaderboard', auth, async (req, res) => {
-  const EFF = 'GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0))';
+  const EFF = effectiveSql('p');
   const inRank = req.query.scope === 'rank';
   const vals = [req.user.id];
   let band = '', rankName = null;
@@ -138,7 +138,7 @@ router.get('/leaderboard', auth, async (req, res) => {
     `SELECT COUNT(*) + 1 AS position
      FROM profiles p JOIN users u ON u.id = p.user_id
      WHERE NOT p.leaderboard_hidden AND ${NAMED('u')}${band}
-       AND GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0)) > COALESCE((SELECT GREATEST(0, COALESCE(points, 0) + COALESCE(challenge_pts, 0)) FROM profiles WHERE user_id = $1), 0)`,
+       AND ${EFF} > COALESCE((SELECT ${EFFECTIVE_SQL} FROM profiles WHERE user_id = $1), 0)`,
     vals
   );
   const mine = leaderboard.find((r) => r.me);
