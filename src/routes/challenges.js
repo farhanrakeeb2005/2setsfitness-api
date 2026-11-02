@@ -29,8 +29,14 @@ const { notifyUser } = require('../lib/push');
 const R = require('../lib/challengeRules');
 const { recordOf, recordsByOpponent } = require('../lib/record');
 const { canChallenge } = require('../lib/challengeAccess');
+const { shownName } = require('../lib/names');
 
-const nameOf = async (userId) => (await pool.query('SELECT name FROM users WHERE id = $1', [userId])).rows[0]?.name || '';
+// a player's name as others see it (lib/names.js shownName)
+const nameOf = async (userId) => {
+  const { rows: [r] } = await pool.query(
+    'SELECT u.name, p.public_id FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1', [userId]);
+  return r ? shownName(r.name, r.public_id) : '';
+};
 
 const MAX_OPEN_SENT = 5;            // pending or running challenges one player has sent
 const PUBLIC_ID = /^[0-9a-f]{32}$/;
@@ -276,7 +282,7 @@ router.get('/', auth, async (req, res) => {
         id: r.id,
         status: r.status,                        // pending | accepted | done
         direction: r.sent ? 'sent' : 'received',
-        opponent: { id: r.opp_id, name: r.opp_name, avatarEmoji: r.opp_emoji || null, avatarPhoto: r.opp_photo || null },
+        opponent: { id: r.opp_id, name: shownName(r.opp_name, r.opp_id), avatarEmoji: r.opp_emoji || null, avatarPhoto: r.opp_photo || null },
         kind, days: r.days || 7, stake: r.stake || 0, forfeit: r.forfeit || null,
         target: r.target || null, routine: r.routine || null, goal: R.goalOf({ kind, target: r.target, routine: r.routine }),
         createdAt: r.created_at, startsAt: r.starts_at, endsAt: r.ends_at,

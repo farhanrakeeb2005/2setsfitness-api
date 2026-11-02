@@ -3,7 +3,8 @@ const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { cleanCard } = require('../lib/publicCard');
 const { getRank } = require('./points');
-const { realName, NAMED } = require('../lib/names');
+const { NAMED, nameUpdate, shownName } = require('../lib/names');
+const { cleanName } = require('../lib/nameCheck');
 const { recordOf } = require('../lib/record');
 const { canChallenge } = require('../lib/challengeAccess');
  
@@ -17,8 +18,15 @@ router.get('/', auth, async (req, res) => {
  
 router.put('/', auth, async (req, res) => {
   const { name, goal, level, units, streak, last_workout_day, avatar_emoji } = req.body;
-  // (a blank name or the 'Athlete' placeholder never replaces a real one)
-  await pool.query('UPDATE users SET name = COALESCE($1, name) WHERE id = $2', [realName(name), req.user.id]);
+  // (a blank name or the 'Athlete' placeholder never replaces a real one; a
+  // name must pass lib/nameCheck.js: 400 { error, reason } and nothing saved,
+  // except the stored name sent back unchanged, from before the check)
+  const nu = nameUpdate(name);
+  if (nu?.reason) {
+    const { rows: [u] } = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
+    if (cleanName(u?.name) !== nu.name) return res.status(400).json({ error: 'Invalid name', reason: nu.reason });
+  }
+  await pool.query('UPDATE users SET name = COALESCE($1, name) WHERE id = $2', [nu?.reason ? null : nu?.name ?? null, req.user.id]);
   await pool.query(
     `UPDATE profiles SET goal=$1, level=$2, units=$3, streak=$4,
      last_workout_day=$5, avatar_emoji=$6, updated_at=NOW() WHERE user_id=$7`,
@@ -86,7 +94,7 @@ router.get('/public/:id', auth, async (req, res) => {
   );
   res.json({
     id,
-    name: r.name,
+    name: shownName(r.name, id),
     points,
     rank: getRank(points),
     position: r.leaderboard_hidden ? null : parseInt(pos.rows[0]?.position || 1),

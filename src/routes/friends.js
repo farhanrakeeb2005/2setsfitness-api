@@ -14,13 +14,14 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { notifyUser } = require('../lib/push');
+const { shownName } = require('../lib/names');
 // who a friend notification is from: their name, and the push's data
 // (playerId: their public id, so the app opens their profile when it's a
 // new friend; the request itself waits in the bell's For you)
 async function senderOf(userId, open) {
   const { rows: [r] } = await pool.query(
     'SELECT u.name, p.public_id FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1', [userId]);
-  const name = r?.name || '';
+  const name = r ? shownName(r.name, r.public_id) : '';
   return { name, data: { open, ...(r?.public_id ? { playerId: r.public_id, playerName: name } : {}) } };
 }
 const auth   = require('../middleware/auth');
@@ -31,7 +32,7 @@ const MAX_FRIENDS = 200;
 const EFFECTIVE = 'GREATEST(0, COALESCE(p.points, 0) + COALESCE(p.challenge_pts, 0))';
 
 const card = (r) => ({
-  id: r.public_id, name: r.name, points: Number(r.points) || 0,
+  id: r.public_id, name: shownName(r.name, r.public_id), points: Number(r.points) || 0,
   avatarEmoji: r.avatar_emoji || null, avatarPhoto: r.avatar_photo || null,
   // when the friendship began (the later of the two rows): the app's "you're now friends"
   ...(r.since ? { since: new Date(r.since).getTime() } : {}),

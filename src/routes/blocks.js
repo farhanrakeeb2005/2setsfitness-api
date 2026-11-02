@@ -7,6 +7,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
+const { shownName } = require('../lib/names');
 
 const PUBLIC_ID = /^[0-9a-f]{32}$/;
 
@@ -14,7 +15,7 @@ router.get('/', auth, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT p.public_id, u.name FROM blocks b JOIN users u ON u.id = b.blocked_id JOIN profiles p ON p.user_id = b.blocked_id
      WHERE b.user_id = $1 ORDER BY b.created_at DESC`, [req.user.id]);
-  res.json(rows.map((r) => ({ id: r.public_id, name: r.name })));
+  res.json(rows.map((r) => ({ id: r.public_id, name: shownName(r.name, r.public_id) })));
 });
 
 router.post('/', auth, async (req, res) => {

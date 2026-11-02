@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
-const { NAMED } = require('../lib/names');
+const { NAMED, shownName } = require('../lib/names');
 const { cappedPoints } = require('../lib/pointsCap');
 const { cleanPhoto, cleanEmoji } = require('../lib/publicCard');
 
@@ -125,7 +125,7 @@ router.get('/leaderboard', auth, async (req, res) => {
   const leaderboard = rows.map((r, i) => ({
     position: i + 1,
     id: r.public_id,
-    name: r.name,
+    name: shownName(r.name, r.public_id),
     tag: r.me ? r.friend_code || null : null,
     avatarEmoji: r.avatar_emoji,
     avatarPhoto: r.avatar_photo || null,

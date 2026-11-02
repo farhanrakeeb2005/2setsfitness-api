@@ -3,6 +3,7 @@ const pool = require('../db');
 const { initFirebaseAdmin } = require('../lib/firebaseAdmin');
 const mailer = require('../lib/mailer');
 const { emailOk } = require('../lib/accountRules');
+const { okName } = require('../lib/nameCheck');
 
 // service account JSON/file, or Application Default Credentials on Cloud Run
 // (src/lib/firebaseAdmin.js)
@@ -10,7 +11,11 @@ initFirebaseAdmin();
 
 // Creates the users/profiles rows on a brand-new Firebase uid's first request.
 // Safe to call on every request — ON CONFLICT DO NOTHING makes it a no-op after the first time.
-async function ensureProfile(uid, email, name) {
+// The token's name (a Google account's, or the one typed at sign-up) is only
+// kept when it passes lib/nameCheck.js; otherwise the 'Athlete' placeholder,
+// and the app's setup asks for a name.
+async function ensureProfile(uid, email, tokenName) {
+  const name = okName(tokenName);
   const { rowCount } = await pool.query(
     `INSERT INTO users (id, email, password, name) VALUES ($1, $2, 'firebase', $3)
      ON CONFLICT (id) DO NOTHING`,
