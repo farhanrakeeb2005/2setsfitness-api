@@ -14,7 +14,15 @@
 const router = require('express').Router();
 const pool   = require('../db');
 const { notifyUser } = require('../lib/push');
-const nameOf = async (userId) => (await pool.query('SELECT name FROM users WHERE id = $1', [userId])).rows[0]?.name || '';
+// who a friend notification is from: their name, and the push's data
+// (playerId: their public id, so the app opens their profile when it's a
+// new friend; the request itself waits in the bell's For you)
+async function senderOf(userId, open) {
+  const { rows: [r] } = await pool.query(
+    'SELECT u.name, p.public_id FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1', [userId]);
+  const name = r?.name || '';
+  return { name, data: { open, ...(r?.public_id ? { playerId: r.public_id, playerName: name } : {}) } };
+}
 const auth   = require('../middleware/auth');
 
 const PUBLIC_ID = /^[0-9a-f]{32}$/;
@@ -75,7 +83,7 @@ router.post('/', auth, async (req, res) => {
   const { rowCount: theirs } = await pool.query('SELECT 1 FROM friends WHERE user_id = $2 AND friend_id = $1', [me, target.user_id]);
   // (a request sent again doesn't notify again; adding back someone who
   // asked first is accepting it)
-  if (added) notifyUser(target.user_id, theirs ? 'friendAccepted' : 'friendRequest', { name: await nameOf(me), data: { open: 'inbox' } });
+  if (added) notifyUser(target.user_id, theirs ? 'friendAccepted' : 'friendRequest', await senderOf(me, theirs ? 'player' : 'inbox'));
   res.status(201).json({ status: theirs ? 'friends' : 'requested' });
 });
 
@@ -87,7 +95,7 @@ router.post('/:id/accept', auth, async (req, res) => {
     [id, req.user.id]);
   if (!t) return res.status(404).json({ error: 'Not found' });
   const { rowCount: added } = await pool.query('INSERT INTO friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, t.user_id]);
-  if (added) notifyUser(t.user_id, 'friendAccepted', { name: await nameOf(req.user.id), data: { open: 'inbox' } });
+  if (added) notifyUser(t.user_id, 'friendAccepted', await senderOf(req.user.id, 'player'));
   res.json({ status: 'friends' });
 });
 

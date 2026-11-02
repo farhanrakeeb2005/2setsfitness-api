@@ -274,6 +274,17 @@ function message(kind, lang, name, f) {
   return { title, body: text };
 }
 
+// FCM data: strings only (a number or null there makes the send fail), with
+// the kind as `type`. The app opens the notification's page from it
+// (formcoach-app lib/notificationRoutes.js): type, challengeId, playerId.
+function pushData(kind, data = {}) {
+  const out = { type: String(kind) };
+  for (const [k, v] of Object.entries(data || {})) {
+    if (v != null && k !== 'type') out[k] = String(v);
+  }
+  return out;
+}
+
 // kind: 'challenged' | 'accepted' | 'won' | 'lost' | 'draw' | 'forfeitDone' | 'forfeitNudge'
 // | 'friendRequest' | 'friendAccepted';
 // data: small strings for the app (where to open)
@@ -289,7 +300,7 @@ async function notifyUser(userId, kind, { name, forfeit, data = {} } = {}) {
         await messaging.send({
           token,
           notification: { title, body },
-          data: { type: kind, ...data },
+          data: pushData(kind, data),
           android: { priority: 'high', notification: { channelId: 'challenges', color: '#E31E24' } },
         });
       } catch (e) {
@@ -306,4 +317,4 @@ async function notifyUser(userId, kind, { name, forfeit, data = {} } = {}) {
   }
 }
 
-module.exports = { notifyUser, message };
+module.exports = { notifyUser, message, pushData };

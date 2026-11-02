@@ -1,6 +1,17 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { message } = require('../src/lib/push');
+const { message, pushData } = require('../src/lib/push');
+
+// FCM takes strings only; the app opens the page from type / challengeId / playerId
+test('push data is all strings, the kind as type, nothing empty', () => {
+  assert.deepEqual(pushData('won', { challengeId: 'abc' }), { type: 'won', challengeId: 'abc' });
+  assert.deepEqual(pushData('challenged', { challengeId: 12 }), { type: 'challenged', challengeId: '12' });
+  assert.deepEqual(pushData('friendAccepted', { open: 'player', playerId: 'f'.repeat(32), playerName: 'Sam', gone: null, none: undefined }),
+    { type: 'friendAccepted', open: 'player', playerId: 'f'.repeat(32), playerName: 'Sam' });
+  assert.equal(pushData('lost', { type: 'won' }).type, 'lost');
+  assert.deepEqual(pushData('draw'), { type: 'draw' });
+  for (const v of Object.values(pushData('accepted', { a: 1, b: true }))) assert.equal(typeof v, 'string');
+});
 
 test('challenge notifications read in the phone language, English otherwise', () => {
   assert.deepEqual(message('challenged', 'en', 'Sam'), { title: 'New challenge', body: 'Sam challenged you. Open it to see the challenge and accept.' });
