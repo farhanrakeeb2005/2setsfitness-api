@@ -223,6 +223,6 @@ function optionalAuth(auth) {
 }
 
 module.exports = {
-  aiQuota, optionalAuth, adviceEndpoint, limits, overLimit, guestOverLimit, limitReply, dayWindow, tzOffset, kindOf,
+  aiQuota, optionalAuth, installIdOf, adviceEndpoint, limits, overLimit, guestOverLimit, limitReply, dayWindow, tzOffset, kindOf,
   CHAT_ENDPOINTS, LOGGING_ENDPOINTS,
 };

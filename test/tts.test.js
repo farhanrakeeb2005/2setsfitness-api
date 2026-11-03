@@ -169,3 +169,91 @@ test('the per-user hourly limit', async () => {
     server.close();
   }
 });
+
+// guests: no token, an install id (as for the AI guest chats): cache hits only
+const INSTALL = 'guest_install_0123456789';
+async function guestCall(router, body, headers = {}) {
+  const app = express();
+  app.use(express.json());
+  app.use('/tts', router);
+  const server = app.listen(0);
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/tts`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
+    });
+    return { status: res.status, body: await res.json() };
+  } finally {
+    server.close();
+  }
+}
+
+test('guests: a cached line plays, an uncached one is 404 and never rendered', async () => {
+  const r = rig();
+  const service = createTtsService({ store: r.store, synth: r.synth, log: quiet });
+  const router = createTtsRouter({ auth: stubAuth, limiter: passLimiter, guestLimit: passLimiter, service, log: quiet });
+  // the tour line is already in the cache (scripts/prewarm_tts.js)
+  const v = validateTts({ text: 'Welcome to 2Sets.' }).value;
+  r.stored.set(cacheKey(v), { audio: Buffer.from('mp3:tour'), duration: 2 });
+
+  const hit = await guestCall(router, { text: 'Welcome to 2Sets.' }, { 'X-Install-Id': INSTALL });
+  assert.equal(hit.status, 200);
+  assert.equal(Buffer.from(hit.body.audio, 'base64').toString(), 'mp3:tour');
+  assert.equal(hit.body.cached, true);
+
+  const miss = await guestCall(router, { text: 'Something new.' }, { 'X-Install-Id': INSTALL });
+  assert.equal(miss.status, 404);
+  assert.equal(miss.body.code, 'tts_not_cached');
+  assert.equal(r.synths(), 0);
+  assert.equal(r.stored.size, 1);
+
+  // no token and no (or a malformed) install id: 401
+  assert.equal((await guestCall(router, { text: 'Welcome to 2Sets.' })).status, 401);
+  assert.equal((await guestCall(router, { text: 'Welcome to 2Sets.' }, { 'X-Install-Id': 'short' })).status, 401);
+  assert.equal(r.synths(), 0);
+});
+
+test('guests: a cache read error is a 502, still no render; signed-in users still render', async () => {
+  const r = rig({ failRead: true });
+  const service = createTtsService({ store: r.store, synth: r.synth, log: quiet });
+  const router = createTtsRouter({ auth: stubAuth, limiter: passLimiter, guestLimit: passLimiter, service, log: quiet });
+  assert.equal((await guestCall(router, { text: 'Go!' }, { 'X-Install-Id': INSTALL })).status, 502);
+  assert.equal(r.synths(), 0);
+  // signed in (with an install id too): renders as before
+  const signed = await guestCall(router, { text: 'Go!' }, { 'X-User': 'u1', Authorization: 'Bearer t', 'X-Install-Id': INSTALL });
+  assert.equal(signed.status, 200);
+  assert.equal(signed.body.cached, false);
+  assert.equal(r.synths(), 1);
+});
+
+test('guests: the per-install hourly limit; /tts/warm stays signed-in only', async () => {
+  const { guestLimiter } = require('../src/routes/tts');
+  const r = rig();
+  const service = createTtsService({ store: r.store, synth: r.synth, log: quiet });
+  const v = validateTts({ text: 'Go!' }).value;
+  r.stored.set(cacheKey(v), { audio: Buffer.from('mp3'), duration: 1 });
+  const router = createTtsRouter({ auth: stubAuth, limiter: passLimiter, warmLimit: passLimiter,
+    guestLimit: guestLimiter({ perInstall: 2, perIp: 4 }), service, log: quiet });
+  const app = express();
+  app.use(express.json());
+  app.use('/tts', router);
+  const server = app.listen(0);
+  try {
+    const { port } = server.address();
+    const post = (id, p = '') => fetch(`http://127.0.0.1:${port}/tts${p}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Install-Id': id }, body: JSON.stringify({ text: 'Go!' }),
+    });
+    const a = 'install_aaaaaaaaaaaaaaaa';
+    const b = 'install_bbbbbbbbbbbbbbbb';
+    assert.equal((await post(a)).status, 200);
+    assert.equal((await post(a)).status, 200);
+    const third = await post(a);
+    assert.equal(third.status, 429);
+    assert.equal((await third.json()).code, 'tts_quota');
+    assert.equal((await post(b)).status, 200);   // a new install id: its own count...
+    assert.equal((await post('install_cccccccccccccccc')).status, 429);   // ...but the IP's cap (4) holds
+    assert.equal((await post(b, '/warm')).status, 401);
+  } finally {
+    server.close();
+  }
+});

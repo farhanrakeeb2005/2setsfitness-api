@@ -5,7 +5,9 @@
 //
 //   validateTts(body)        -> { ok, value: { text, voice, speed } } | { error }
 //   cacheKey(value)          -> sha256 hex of `voice|speed|text`
-//   createTtsService({ store, synth, log }) -> { get(value), warm() }
+//   createTtsService({ store, synth, log }) -> { get(value, { cacheOnly }), warm() }
+//     get(value, { cacheOnly: true }): a cache hit, or null (never renders;
+//       guests, routes/tts.js)
 //     store: { read(key) -> { audio: Buffer, duration } | null, write(key, audio, duration) }
 //     synth(value) -> { audio: Buffer, duration }
 //     warm(): has the tts service say one short word, not stored: a cold
@@ -99,14 +101,16 @@ function createTtsService({ store, synth, log = console, now = Date.now }) {
     return { audio: out.audio, duration: out.duration, cached: false };
   }
 
-  async function get(value) {
+  async function get(value, { cacheOnly = false } = {}) {
     const key = cacheKey(value);
     try {
       const hit = await store.read(key);
       if (hit?.audio?.length) return { audio: hit.audio, duration: hit.duration, cached: true };
     } catch (err) {
+      if (cacheOnly) throw err;
       log.error('tts cache read failed (rendering):', err.message);
     }
+    if (cacheOnly) return null;
     if (!inFlight.has(key)) {
       inFlight.set(key, render(key, value).finally(() => inFlight.delete(key)));
     }
