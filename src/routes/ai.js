@@ -23,6 +23,7 @@ function parseJSON(text) {
 
 const { langDirective, langName, COACH_STYLE, splitCoachNote, clean, mealNoteDirective, foodTextPrompt, workoutTextPrompt } = require('../lib/aiText');
 const { aiQuota, optionalAuth, adviceEndpoint } = require('../lib/aiQuota');
+const { containerVolumeHandler } = require('../lib/containerVolume');
 
 // per-user daily caps on every AI call (src/lib/aiQuota.js), after the token check
 const quota = (endpoint) => aiQuota(pool, endpoint);
@@ -279,6 +280,16 @@ If there is no food in the photo, return {"items":[],"total":{"calories":0,"prot
     res.status(500).json({ error: 'Meal scan failed' });
   }
 });
+
+// ─── POST /ai/container-volume ───────────────────────────────────────────────
+// Body: { imageBase64, mimeType?, lang }
+// How much a drinking container holds, from a photo (the app's water card
+// saves it as one of the user's containers): { name, ml, confidence, reason,
+// label }. src/lib/containerVolume.js has the prompt and the label parsing.
+// A logging tool for the caps (like a meal scan), not a coach chat.
+router.post('/container-volume', auth, quota('container-volume'), containerVolumeHandler({
+  create: (r) => anthropic.messages.create(r), models, request, replyText, parseJSON, langDirective,
+}));
 
 // ─── POST /ai/food-text ──────────────────────────────────────────────────────
 // Body: { text: "2 boiled eggs", lang }

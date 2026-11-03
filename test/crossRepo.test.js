@@ -131,3 +131,14 @@ test('plausibility: the server\'s limits, speeds and race verdicts are the app\'
     }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('water containers: the app reads a label\'s size as the server does', { skip }, async () => {
+  const app = await importApp('src/lib/waterContainers.js');
+  const api = require('../src/lib/containerVolume');
+  for (const s of ['500 ml', '0.75 L', '0,75l', '1 L', '1.5 litres', '33 cl', '75cl', '16.9 fl oz', '12 fl. oz.', '20 oz', '5 dl',
+    '500 ml (16.9 fl oz)', '2 x 330 ml', '', 'Water bottle', '500', '10 ml', '20 L']) {
+    assert.equal(app.labelToMl(s), api.labelToMl(s), s);
+  }
+  assert.equal(app.MIN_ML, api.MIN_ML);
+  assert.equal(app.MAX_ML, api.MAX_ML);
+});

@@ -7,7 +7,8 @@
 // coach chat and the daily check-in's talk-back (the app sends kind: 'chat',
 // or nothing: builds from before kind). The coach's sentence on a meal
 // (kind: 'meal-take') is a logging tool, like a meal photo scan, a meal
-// described in words (food-text) and a workout said out loud (workout-text):
+// described in words (food-text), a workout said out loud (workout-text) and
+// a drink container's size from a photo (container-volume):
 // those have their own, roomier caps and never use up the chat messages.
 //
 // Limits (env), per signed-in user:
@@ -15,7 +16,8 @@
 //                           is the phone's: it sends X-TZ-Offset (minutes east
 //                           of UTC); without it, UTC. Also never more than
 //                           twice that in any 24 hours, whatever offset is sent.
-//   AI_LOGGING_DAILY_LIMIT  meal scans + foods described + workouts said, per
+//   AI_LOGGING_DAILY_LIMIT  meal scans + foods described + workouts said +
+//                           containers sized from a photo, per
 //                           local day (default 40)
 //   AI_SCAN_DAILY_LIMIT     of those, meal photo scans (default 30: they cost most)
 //   AI_TAKE_DAILY_LIMIT     the coach's take on a meal, per local day (default 30)
@@ -35,7 +37,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // 'advice': rows from before chat and meal takes were told apart
 const CHAT_ENDPOINTS = ['chat', 'advice'];
-const LOGGING_ENDPOINTS = ['meal-scan', 'food-text', 'workout-text'];
+const LOGGING_ENDPOINTS = ['meal-scan', 'food-text', 'workout-text', 'container-volume'];
 
 const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : d);
 
