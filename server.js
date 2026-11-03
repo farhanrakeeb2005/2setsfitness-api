@@ -41,6 +41,16 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS user_sync_updated ON user_sync (user_id, updated_at)`,
   // per-user daily AI caps count a user's calls over the last 24 h (src/lib/aiQuota.js)
   `CREATE INDEX IF NOT EXISTS ai_log_user_time ON ai_log (user_id, logged_at)`,
+  // guests' free coach chats (src/lib/aiQuota.js): the app's install id and a
+  // salted hash of the IP, never a name or the message
+  `CREATE TABLE IF NOT EXISTS ai_guest_log (
+    id BIGSERIAL PRIMARY KEY,
+    install_id TEXT NOT NULL,
+    ip_hash TEXT,
+    logged_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS ai_guest_log_install ON ai_guest_log (install_id)`,
+  `CREATE INDEX IF NOT EXISTS ai_guest_log_time ON ai_guest_log (logged_at)`,
   // challenges: 7-day points races between two players (src/routes/challenges.js);
   // an account's challenges go with it
   `CREATE TABLE IF NOT EXISTS challenges (
