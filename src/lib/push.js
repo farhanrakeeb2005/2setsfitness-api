@@ -8,6 +8,7 @@
 const pool = require('../db');
 
 // the two messages, in the app's 25 languages ({name}: the other player)
+// (expired: a request sent wasn't answered within CHALLENGE_REQUEST_TTL_H, lib/challengeRules.js)
 const T = {
   challenged: {
     en: ['New challenge', '{name} challenged you. Open it to see the challenge and accept.'],
@@ -198,6 +199,33 @@ const T = {
     bn: ["শাস্তির কথা মনে করিয়ে দেওয়া", "{name} আপনার শাস্তির অপেক্ষায়: {f}"],
     so: ["Xusuusin ganaax", "{name} ayaa sugaya ganaaxaaga: {f}"],
   },
+  expired: {
+    en: ['Challenge expired', "{name} didn't answer in time, so your challenge has expired. Send another whenever you like."],
+    ar: ['انتهى التحدي', 'لم يرد {name} في الوقت المحدد، فانتهت صلاحية تحديك. أرسل تحديًا آخر متى شئت.'],
+    ur: ['چیلنج ختم', '{name} نے وقت پر جواب نہیں دیا، اس لیے آپ کا چیلنج ختم ہو گیا۔ جب چاہیں دوسرا بھیجیں۔'],
+    es: ['Reto caducado', '{name} no respondió a tiempo, así que tu reto ha caducado. Envía otro cuando quieras.'],
+    fr: ['Défi expiré', '{name} n’a pas répondu à temps, ton défi a donc expiré. Envoies-en un autre quand tu veux.'],
+    pt: ['Desafio expirado', '{name} não respondeu a tempo, por isso o seu desafio expirou. Envie outro quando quiser.'],
+    tr: ['Meydan okumanın süresi doldu', '{name} zamanında yanıt vermedi, bu yüzden meydan okumanın süresi doldu. İstediğin zaman yenisini gönder.'],
+    de: ['Herausforderung abgelaufen', '{name} hat nicht rechtzeitig geantwortet, deine Herausforderung ist abgelaufen. Schick einfach eine neue.'],
+    it: ['Sfida scaduta', '{name} non ha risposto in tempo, quindi la tua sfida è scaduta. Mandane un’altra quando vuoi.'],
+    nl: ['Uitdaging verlopen', '{name} heeft niet op tijd gereageerd, dus je uitdaging is verlopen. Stuur gerust een nieuwe.'],
+    ru: ['Вызов истёк', '{name} не ответил(а) вовремя, поэтому ваш вызов истёк. Отправьте новый, когда захотите.'],
+    hi: ['चुनौती समाप्त', '{name} ने समय पर जवाब नहीं दिया, इसलिए आपकी चुनौती समाप्त हो गई। जब चाहें दूसरी भेजें।'],
+    ja: ['チャレンジの期限切れ', '{name}さんから時間内に返事がなかったため、チャレンジは期限切れになりました。いつでも新しく送れます。'],
+    kr: ['도전 만료', '{name}님이 제때 답하지 않아 도전이 만료됐어요. 언제든 다시 보내 보세요.'],
+    vi: ['Thử thách hết hạn', '{name} không trả lời kịp, nên thử thách của bạn đã hết hạn. Gửi thử thách khác bất cứ lúc nào.'],
+    th: ['คำท้าหมดเวลา', '{name} ไม่ได้ตอบทันเวลา คำท้าของคุณจึงหมดอายุ ส่งใหม่ได้ทุกเมื่อ'],
+    sw: ['Changamoto imeisha muda', '{name} hakujibu kwa wakati, kwa hivyo changamoto yako imeisha muda. Tuma nyingine wakati wowote.'],
+    'zh-CN': ['挑战已过期', '{name} 没有及时回应，你的挑战已过期。随时可以再发一个。'],
+    ms: ['Cabaran tamat tempoh', '{name} tidak menjawab tepat pada masanya, jadi cabaran anda telah tamat tempoh. Hantar yang lain bila-bila masa.'],
+    id: ['Tantangan kedaluwarsa', '{name} tidak menjawab tepat waktu, jadi tantanganmu kedaluwarsa. Kirim lagi kapan saja.'],
+    tl: ['Nag-expire ang hamon', 'Hindi sumagot si {name} sa tamang oras, kaya nag-expire ang hamon mo. Magpadala ulit kahit kailan.'],
+    pl: ['Wyzwanie wygasło', '{name} nie odpowiada na czas, więc twoje wyzwanie wygasło. Wyślij kolejne, kiedy zechcesz.'],
+    fa: ['چالش منقضی شد', '{name} به‌موقع پاسخ نداد، پس چالشت منقضی شد. هر وقت خواستی یکی دیگر بفرست.'],
+    bn: ['চ্যালেঞ্জের মেয়াদ শেষ', '{name} সময়মতো উত্তর দেয়নি, তাই আপনার চ্যালেঞ্জের মেয়াদ শেষ। যখন খুশি আরেকটি পাঠান।'],
+    so: ['Loolanka waa dhacay', '{name} waqtigii kuma jawaabin, markaa loolankaagu waa dhacay. Mid kale dir wakhti kasta.'],
+  },
   // friends (routes/friends.js): a request, and the request accepted
   friendRequest: {
     en: ['Friend request', '{name} wants to be your friend. Open the app to accept.'],
@@ -285,7 +313,7 @@ function pushData(kind, data = {}) {
   return out;
 }
 
-// kind: 'challenged' | 'accepted' | 'won' | 'lost' | 'draw' | 'forfeitDone' | 'forfeitNudge'
+// kind: 'challenged' | 'accepted' | 'expired' | 'won' | 'lost' | 'draw' | 'forfeitDone' | 'forfeitNudge'
 // | 'friendRequest' | 'friendAccepted';
 // data: small strings for the app (where to open)
 async function notifyUser(userId, kind, { name, forfeit, data = {} } = {}) {

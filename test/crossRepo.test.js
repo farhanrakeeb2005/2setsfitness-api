@@ -80,6 +80,12 @@ test('challenges: the app\'s STAKES, DAYS and TARGETS are the server\'s', { skip
   }
 });
 
+test('challenge requests: the app\'s CHALLENGE_REQUEST_TTL_H is the server\'s', { skip }, () => {
+  const R = require('../src/lib/challengeRules');
+  assert.equal(exported(read('src/lib/challengeTime.js'), 'CHALLENGE_REQUEST_TTL_H'), R.CHALLENGE_REQUEST_TTL_H);
+  assert.equal(R.CHALLENGE_REQUEST_TTL_H, 12);
+});
+
 test('help facts: the app\'s SERVER_DAILY_CAP, STAKE_MIN_LOGS and STAKE_MAX are the server\'s', { skip }, () => {
   const src = read('src/lib/help/facts.js');
   const { DAILY_POINTS_CAP } = require('../src/lib/pointsCap');

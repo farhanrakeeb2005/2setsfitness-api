@@ -4,7 +4,9 @@
 //   POST /challenges                 { to: <public id>, kind, days, stake, forfeit, target, routine }
 //                                    send one (pending); left out, a 7-day points race
 //   GET  /challenges                 mine, sent and received, still open or ended in the last 30 days;
-//                                    record (my wins / draws / losses) and records (by opponent's public id)
+//                                    record (my wins / draws / losses) and records (by opponent's public id);
+//                                    ?expired=1: also my sent requests that expired in the last day
+//                                    (older app builds don't know the status, so they never get them)
 //   POST /challenges/:id/respond     { accept: true|false } the challenged player only
 //   POST /challenges/:id/cancel      the sender, while it's still pending
 //   POST /challenges/:id/forfeit-done   the loser: the forfeit is done (the winner hears)
@@ -22,6 +24,14 @@
 // the result as a notification (with the forfeit owed), and races whose time
 // is up are settled every few minutes as well (settleDue, server.js), so the
 // result comes even if neither player opens the app.
+//
+// A request waits CHALLENGE_REQUEST_TTL_H hours (lib/challengeRules.js) for
+// an answer; after that it's 'expired': it can't be accepted or declined
+// (410), and the sender hears "Sam didn't answer in time". Expired on read
+// (a pending row past its time is never shown or treated as pending) and
+// marked so by expireRequests: before a player's list, a new challenge or an
+// answer, and every few minutes with settleDue. No points are held while a
+// request waits, so none are given back.
 const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
@@ -188,8 +198,29 @@ async function settle(userId) {
   return settleRows(rows);
 }
 
+// Requests past their time (all, or those of userIds) become 'expired', once
+// (only the UPDATE that flips a row tells its sender); the expired rows
+async function expireRequests(userIds = null) {
+  const scoped = Array.isArray(userIds) && userIds.length > 0;
+  const { rows } = await pool.query(
+    `UPDATE challenges SET status = 'expired'
+     WHERE status = 'pending' AND created_at <= now() - make_interval(hours => $1)
+       ${scoped ? 'AND (from_user = ANY($2) OR to_user = ANY($2))' : ''}
+     RETURNING id, from_user, to_user`,
+    scoped ? [R.CHALLENGE_REQUEST_TTL_H, userIds] : [R.CHALLENGE_REQUEST_TTL_H]);
+  for (const c of rows) {
+    try {
+      notifyUser(c.from_user, 'expired', { name: await nameOf(c.to_user), data: { challengeId: c.id } });
+    } catch (e) {
+      console.warn('challenge expired push:', e.message);
+    }
+  }
+  return rows;
+}
+
 // Every race whose time is up, whoever's they are (server.js runs it every
-// few minutes), so the result and its notification come on time
+// few minutes), so the result and its notification come on time; and every
+// request past its time expires (its sender told)
 async function settleDue() {
   try {
     const { rows } = await pool.query(`${RUNNING} AND c.ends_at <= now() LIMIT 50`);
@@ -197,6 +228,7 @@ async function settleDue() {
   } catch (e) {
     console.warn('settleDue:', e.message);
   }
+  await expireRequests().catch((e) => console.warn('expireRequests:', e.message));
 }
 
 router.post('/', auth, async (req, res) => {
@@ -225,6 +257,7 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ error: 'points', message: 'You don\'t have that many points to put on it' });
     }
   }
+  await expireRequests([req.user.id, target.user_id]).catch((e) => console.warn('expireRequests:', e.message));
   const { rows: [open] } = await pool.query(
     `SELECT
        COUNT(*) FILTER (WHERE from_user = $1) AS sent,
@@ -245,7 +278,9 @@ router.post('/', auth, async (req, res) => {
 });
 
 router.get('/', auth, async (req, res) => {
+  await expireRequests([req.user.id]).catch((e) => console.warn('expireRequests:', e.message));
   const live = await settle(req.user.id);
+  const withExpired = req.query?.expired === '1';
   const { rows } = await pool.query(
     `SELECT c.id, c.status, c.created_at, c.starts_at, c.ends_at, c.kind, c.days, c.stake, c.forfeit, c.target, c.routine,
             c.winner, c.moved, c.from_value, c.to_value, c.forfeit_done_at, c.nudged_at,
@@ -259,19 +294,24 @@ router.get('/', auth, async (req, res) => {
      JOIN users ou ON ou.id = CASE WHEN c.from_user = $1 THEN c.to_user ELSE c.from_user END
      JOIN profiles op ON op.user_id = ou.id
      WHERE (c.from_user = $1 OR c.to_user = $1)
-       AND (c.status IN ('pending', 'accepted') OR (c.status = 'done' AND c.ends_at > now() - interval '30 days'))
+       AND (c.status IN ('pending', 'accepted') OR (c.status = 'done' AND c.ends_at > now() - interval '30 days')
+         OR ($2 AND c.status = 'expired' AND c.from_user = $1 AND c.created_at > now() - make_interval(hours => $3)))
      ORDER BY c.created_at DESC
      LIMIT 30`,
-    [req.user.id]
+    [req.user.id, withExpired, R.CHALLENGE_REQUEST_TTL_H + R.EXPIRED_SHOWN_H]
   );
   const { rows: [me] } = await pool.query('SELECT COALESCE(challenge_pts, 0) AS n FROM profiles WHERE user_id = $1', [req.user.id]);
+  const now = Date.now();
   res.json({
-    challenges: rows.map((r) => {
+    challenges: rows.map((r) => ({ ...r, status: R.requestExpired(r, now) ? 'expired' : r.status }))
+      // (expired: only the sender's, and only for an app that asked)
+      .filter((r) => r.status !== 'expired' || (withExpired && r.sent))
+      .map((r) => {
       const kind = r.kind || 'points';
       let fromV = 0, toV = 0;
       if (r.status === 'done' && r.from_value != null) { fromV = Number(r.from_value); toV = Number(r.to_value); }
       else if (r.status === 'accepted' && live[r.id]) { fromV = live[r.id].from; toV = live[r.id].to; }
-      else if (r.status !== 'pending' && kind === 'points') {
+      else if (r.status !== 'pending' && r.status !== 'expired' && kind === 'points') {
         fromV = Math.max(0, (r.from_end ?? r.from_now ?? 0) - (r.from_start ?? 0));
         toV = Math.max(0, (r.to_end ?? r.to_now ?? 0) - (r.to_start ?? 0));
       }
@@ -280,12 +320,14 @@ router.get('/', auth, async (req, res) => {
         : r.status === 'done' ? (mine > theirs ? 'won' : mine < theirs ? 'lost' : 'draw') : null;
       return {
         id: r.id,
-        status: r.status,                        // pending | accepted | done
+        status: r.status,                        // pending | accepted | done | expired
         direction: r.sent ? 'sent' : 'received',
         opponent: { id: r.opp_id, name: shownName(r.opp_name, r.opp_id), avatarEmoji: r.opp_emoji || null, avatarPhoto: r.opp_photo || null },
         kind, days: r.days || 7, stake: r.stake || 0, forfeit: r.forfeit || null,
         target: r.target || null, routine: r.routine || null, goal: R.goalOf({ kind, target: r.target, routine: r.routine }),
         createdAt: r.created_at, startsAt: r.starts_at, endsAt: r.ends_at,
+        // a request: when it stops waiting for an answer
+        expiresAt: r.status === 'pending' || r.status === 'expired' ? R.requestExpiresAt(r.created_at) : null,
         mine, theirs,
         result: r.status === 'done' ? won : null,
         moved: r.status === 'done' ? (r.moved || 0) : 0,
@@ -305,10 +347,15 @@ router.post('/:id/respond', auth, async (req, res) => {
   const id = String(req.params.id || '');
   if (!CHALLENGE_ID.test(id)) return res.status(404).json({ error: 'Not found' });
   const accept = req.body?.accept === true;
+  const { rows: [c] } = await pool.query(
+    `SELECT stake, status, created_at FROM challenges WHERE id = $1 AND to_user = $2 AND status IN ('pending', 'expired')`, [id, req.user.id]);
+  if (!c) return res.status(404).json({ error: 'Not found' });
+  // too late to answer (its sender is told by expireRequests)
+  if (R.requestExpired(c)) {
+    await expireRequests([req.user.id]).catch((e) => console.warn('expireRequests:', e.message));
+    return res.status(410).json({ error: 'expired', message: `This challenge expired: it wasn't answered within ${R.CHALLENGE_REQUEST_TTL_H} hours` });
+  }
   if (accept) {
-    const { rows: [c] } = await pool.query(
-      `SELECT stake FROM challenges WHERE id = $1 AND to_user = $2 AND status = 'pending'`, [id, req.user.id]);
-    if (!c) return res.status(404).json({ error: 'Not found' });
     if (c.stake > 0) {
       if (!(await activeEnough(req.user.id))) {
         return res.status(403).json({ error: 'new', message: `Points can be put on a challenge once both players have logged ${R.STAKE_MIN_LOGS} workouts or sports` });
@@ -323,7 +370,8 @@ router.post('/:id/respond', auth, async (req, res) => {
       `UPDATE challenges c SET status = 'accepted', starts_at = now(), ends_at = now() + make_interval(days => COALESCE(c.days, 7)),
          from_start = COALESCE((SELECT points FROM profiles WHERE user_id = c.from_user), 0),
          to_start   = COALESCE((SELECT points FROM profiles WHERE user_id = c.to_user), 0)
-       WHERE c.id = $1 AND c.to_user = $2 AND c.status = 'pending'`, [id, req.user.id])
+       WHERE c.id = $1 AND c.to_user = $2 AND c.status = 'pending' AND c.created_at > now() - make_interval(hours => $3)`,
+      [id, req.user.id, R.CHALLENGE_REQUEST_TTL_H])
     : await pool.query(
       `UPDATE challenges SET status = 'declined' WHERE id = $1 AND to_user = $2 AND status = 'pending'`, [id, req.user.id]);
   if (!rowCount) return res.status(404).json({ error: 'Not found' });
@@ -381,3 +429,4 @@ router.post('/:id/nudge', auth, async (req, res) => {
 
 module.exports = router;
 module.exports.settleDue = settleDue;
+module.exports.expireRequests = expireRequests;

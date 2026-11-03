@@ -36,6 +36,32 @@ const STAKE_MIN_AGE_DAYS = 3;   // (no longer checked: see STAKE_MIN_LOGS)
 // points can go on a challenge once both players have logged this many
 // workouts or sports (real use, not just an old account)
 const STAKE_MIN_LOGS = 3;
+// a challenge request not accepted (or declined) within this many hours of
+// being sent expires: it can't be accepted any more, and the sender is told.
+// Nothing is held while one waits (a stake only moves when a race ends), so
+// nothing is given back. formcoach-app lib/challengeTime.js has the same
+// number (test/crossRepo.test.js checks it)
+const CHALLENGE_REQUEST_TTL_H = 12;
+const REQUEST_TTL_MS = CHALLENGE_REQUEST_TTL_H * 3600 * 1000;
+// an expired request stays in its sender's list this long after it expired
+// ("Sam didn't answer in time"), then drops
+const EXPIRED_SHOWN_H = 24;
+
+/** when a request sent at createdAt expires (a Date; null without a time) */
+function requestExpiresAt(createdAt) {
+  const t = new Date(createdAt).getTime();
+  return Number.isFinite(t) ? new Date(t + REQUEST_TTL_MS) : null;
+}
+
+/** a challenge (a row: status, created_at) that is an expired request at
+ * now: marked so, or still pending past its time */
+function requestExpired(c, now = Date.now()) {
+  if (!c) return false;
+  if (c.status === 'expired') return true;
+  if (c.status !== 'pending') return false;
+  const at = requestExpiresAt(c.created_at ?? c.createdAt);
+  return !!at && at.getTime() <= now;
+}
 
 // the targets on offer; reps match the exercise names the app logs
 const TARGETS = {
@@ -170,5 +196,6 @@ function transfer(stake, loserPoints, wonFromThemThisWeek) {
 
 module.exports = {
   KINDS, DAYS, STAKES, TARGETS, FORFEIT_MAX, SET_REPS, DAY_REPS, WEEKLY_FROM_ONE, STAKE_MIN_AGE_DAYS, STAKE_MIN_LOGS,
+  CHALLENGE_REQUEST_TTL_H, EXPIRED_SHOWN_H, requestExpiresAt, requestExpired,
   cleanSpec, progress, decide, transfer, goalOf,
 };
