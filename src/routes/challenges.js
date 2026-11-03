@@ -93,7 +93,8 @@ async function raceProgress(c) {
   const spec = specOf(c);
   const start = new Date(c.starts_at).getTime(), end = new Date(c.ends_at).getTime();
   const [a, b] = await Promise.all([logsOf(c.from_user, start), logsOf(c.to_user, start)]);
-  return { from: R.progress(spec, a, start, end), to: R.progress(spec, b, start, end) };
+  const now = Date.now();
+  return { from: R.progress(spec, a, start, end, now), to: R.progress(spec, b, start, end, now) };
 }
 
 // Finishes a race that's decided: its totals, its result and the stake, once

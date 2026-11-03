@@ -2,7 +2,7 @@ const router = require('express').Router();
 const pool   = require('../db');
 const auth   = require('../middleware/auth');
 const { NAMED, shownName } = require('../lib/names');
-const { cappedPoints } = require('../lib/pointsCap');
+const { reportedPoints } = require('../lib/pointsCap');
 const { effectiveSql, EFFECTIVE_SQL } = require('../lib/sql');
 const { getRank } = require('../lib/ranks');
 
@@ -19,7 +19,9 @@ router.get('/', auth, async (req, res) => {
 // PUT /points — { points }: the app's own total. Points are worked out on the
 // phone from its logs (local-first; the old per-log server routes are no
 // longer called), so the app reports the total for the leaderboard, held to
-// what the account's age makes believable (src/lib/pointsCap.js).
+// what the account's age makes believable and to DAILY_POINTS_CAP more a
+// day since the last day it was reported (src/lib/pointsCap.js
+// reportedPoints); a claim over that is stored at the limit and logged.
 const MAX_POINTS = 10_000_000;
 // Optional, for the leaderboard: avatar_emoji (a short string) or avatar_photo
 // (a small JPEG data URL), each null to clear; left out, kept as it is.
@@ -32,10 +34,20 @@ router.put('/', auth, async (req, res) => {
   const pts = Math.round(Number(b.points));
   if (!lookOnly && (!Number.isFinite(pts) || pts < 0 || pts > MAX_POINTS)) return res.status(400).json({ error: 'Invalid points' });
   if (lookOnly && !('avatar_emoji' in b) && !('avatar_photo' in b)) return res.status(400).json({ error: 'Nothing to save' });
-  // the total, capped by the account's age (pointsCap.js), and the picture
-  const { rows } = await pool.query('SELECT created_at FROM users WHERE id = $1', [req.user.id]);
-  const stored = lookOnly ? null : cappedPoints(pts, rows[0]?.created_at);
-  const sets = lookOnly ? [] : ['points = $1'], vals = lookOnly ? [] : [stored];
+  // the total, capped by the account's age and the day's rise (pointsCap.js), and the picture
+  let stored = null;
+  const sets = [], vals = [];
+  if (!lookOnly) {
+    const { rows } = await pool.query(
+      `SELECT u.created_at, p.points, p.points_day, p.points_day_max
+       FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1`, [req.user.id]);
+    const r = rows[0] || {};
+    const got = reportedPoints(pts, r.created_at, { points: r.points, day: r.points_day, dayMax: r.points_day_max });
+    if (got.clamped) console.warn(`points: ${req.user.id} claimed ${pts}, stored ${got.stored} (had ${r.points ?? 0})`);
+    stored = got.stored;
+    vals.push(stored, got.day, got.dayMax);
+    sets.push('points = $1', 'points_day = $2', 'points_day_max = $3');
+  }
   if ('avatar_emoji' in b) {
     const e = b.avatar_emoji;
     if (e !== null && (typeof e !== 'string' || e.length > 16)) return res.status(400).json({ error: 'Invalid avatar' });

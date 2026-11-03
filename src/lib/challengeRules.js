@@ -8,10 +8,15 @@
 //            a workout with the routine's name and a done set of each exercise
 //
 // If nobody gets there before the end, whoever got closest wins; level is a
-// draw. A stake (points) goes from the loser to the winner. (Forfeits, words
+// draw. A stake (points) goes from the loser to the winner. A log the app
+// would refuse as impossible (lib/plausibility.js: more reps in a set than
+// anyone does, sets faster than the time allows, a 7-hour session, a distance
+// faster than anyone goes, a time not come yet) doesn't count at all. (Forfeits, words
 // on the result card, are no longer taken; older races keep theirs.) Reps are taken on trust, with caps
 // (a set counts for at most SET_REPS, a day for at most DAY_REPS): the only
 // person you cheat is yourself.
+
+const { raceWorkoutBlocked, raceSportBlocked, inFuture } = require('./plausibility');
 
 const KINDS = ['points', 'target', 'routine'];
 const DAYS = [1, 3, 7, 14];
@@ -78,10 +83,14 @@ const done = (s) => s && s.done !== false;
 /**
  * One player's progress toward a target or routine between start and end
  * (ms): { value, reachedAt } (reachedAt: ms of the log that got there, or null).
- * history / sports: the items of the player's backed-up collections.
+ * history / sports: the items of the player's backed-up collections. now:
+ * logs after it (plus a few minutes) are in the future and don't count.
+ * Logs the app's plausibility rules refuse don't count (lib/plausibility.js).
  */
-function progress(spec, { history = [], sports = [] }, start, end) {
-  const inside = (x) => Number.isFinite(x?.ts) && x.ts >= start && x.ts <= end;
+function progress(spec, { history = [], sports = [] }, start, end, now = Infinity) {
+  const inside = (x) => Number.isFinite(x?.ts) && x.ts >= start && x.ts <= end && !inFuture(x.ts, now);
+  history = (history || []).filter((h) => h && !raceWorkoutBlocked(h));
+  sports = (sports || []).filter((s) => s && !raceSportBlocked(s));
   const events = [];   // [ts, amount]
   if (spec.kind === 'target') {
     const t = TARGETS[spec.target.key];

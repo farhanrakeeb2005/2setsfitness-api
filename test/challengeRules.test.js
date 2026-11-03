@@ -23,7 +23,8 @@ test('reps: done sets of the matching exercise inside the window, capped per set
   const history = [
     H(T0 - 1, 'Before', [{ name: 'Push-up', sets: [set(50)] }]),                       // before it began
     H(T0 + 10, 'Chest', [{ name: 'Push-ups', sets: [set(30), set(20, false)] }, { name: 'Bench press', sets: [set(10)] }]),
-    H(T0 + 20, 'Silly', [{ name: 'Press-up', sets: [set(5000)] }]),                     // a set counts for 100
+    H(T0 + 20, 'Big', [{ name: 'Press-up', sets: [set(150)] }]),                        // a set counts for 100
+    H(T0 + 30, 'Silly', [{ name: 'Press-up', sets: [set(5000)] }]),                     // impossible: not counted
   ];
   assert.deepEqual(R.progress(spec, { history }, T0, T0 + 7 * day), { value: 130, reachedAt: T0 + 20 });
   const lots = Array.from({ length: 12 }, (_, i) => H(T0 + i, 'x', [{ name: 'Push-up', sets: [set(100)] }]));

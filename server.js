@@ -19,6 +19,11 @@ const MIGRATIONS = [
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_id TEXT DEFAULT replace(gen_random_uuid()::text, '-', '')`,
   `CREATE UNIQUE INDEX IF NOT EXISTS profiles_public_id ON profiles (public_id)`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_card JSONB`,
+  // PUT /points: the last UTC day ('YYYY-MM-DD') a total was reported and
+  // that day's ceiling (lib/pointsCap.js reportedPoints: no more than the
+  // daily cap a day since)
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS points_day TEXT`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS points_day_max INTEGER`,
   // update emails: on by default, one-click off from the email footer (src/routes/email.js)
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_updates BOOLEAN NOT NULL DEFAULT TRUE`,
   // Body weight tracking table

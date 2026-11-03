@@ -88,3 +88,34 @@ test('help facts: the app\'s SERVER_DAILY_CAP, STAKE_MIN_LOGS and STAKE_MAX are 
   assert.equal(exported(src, 'STAKE_MIN_LOGS'), R.STAKE_MIN_LOGS);
   assert.equal(exported(src, 'STAKE_MAX'), Math.max(...R.STAKES));
 });
+
+test('plausibility: the server\'s limits, speeds and race verdicts are the app\'s', { skip }, async () => {
+  // the app's plausibility.js imports sportDistance.js: both copied, as .mjs
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fc-cross-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'sportDistance.mjs'), read('src/lib/sportDistance.js'));
+    fs.writeFileSync(path.join(dir, 'plausibility.mjs'), read('src/lib/plausibility.js').replace("'./sportDistance.js'", "'./sportDistance.mjs'"));
+    const app = await import(pathToFileURL(path.join(dir, 'plausibility.mjs')).href);
+    const dist = await import(pathToFileURL(path.join(dir, 'sportDistance.mjs')).href);
+    const api = require('../src/lib/plausibility');
+    assert.deepEqual(api.LIMITS, app.LIMITS);
+    assert.deepEqual(api.KM_TOP_SPEED, dist.KM_TOP_SPEED);
+    assert.deepEqual(api.KM_CHECK_SPEED, dist.KM_CHECK_SPEED);
+    const sets = (n, r, w = 0) => Array.from({ length: n }, () => ({ w, r, done: true }));
+    const workouts = [];
+    for (const r of [5, 100, 101, 300, 301, 1000]) for (const n of [1, 4, 10, 38, 60, 151]) for (const dur of [undefined, 60, 300, 900, 1800, 3600, 7200]) {
+      for (const name of ['Push-up', 'Plank', 'Treadmill run', 'Bench press']) {
+        workouts.push({ ts: 1, durationSec: dur, exercises: [{ name, sets: sets(n, r, name === 'Bench press' ? 400 : 0) }] });
+      }
+    }
+    for (const h of workouts) {
+      assert.equal(api.raceWorkoutBlocked(h), app.raceWorkoutBlocked(h), JSON.stringify({ ...h, exercises: h.exercises.map((e) => [e.name, e.sets.length, e.sets[0].r]) }));
+      assert.equal(api.paceLevel(h.exercises, h.durationSec), app.checkPace(h.exercises, h.durationSec).level);
+    }
+    for (const sport of ['Running', 'Cycling', 'Swimming', 'Walking', 'Hiking', 'Rowing', 'Football']) {
+      for (const duration of [0, 30, 60, 180, 361]) for (const km of [0, 1, 5, 12, 22, 40, 400]) {
+        assert.equal(api.raceSportBlocked({ sport, duration, km }), app.raceSportBlocked({ sport, duration, km }), `${sport} ${duration} ${km}`);
+      }
+    }
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

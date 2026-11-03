@@ -29,4 +29,38 @@ function cappedPoints(points, createdAt, now = Date.now()) {
   return Math.max(0, Math.min(Math.round(Number(points) || 0), pointsCap(createdAt, now)));
 }
 
-module.exports = { DAILY_POINTS_CAP, OLD_DAILY_POINTS_CAP, CAP_CHANGED_FROM, pointsCap, cappedPoints };
+// A day's rise. The age cap above allows a big jump at once on an old
+// account (a total that never used its allowance), so the total also can't
+// rise by more than DAILY_POINTS_CAP for each UTC day since the last day it
+// was reported: the first report of a day fixes that day's ceiling (the total
+// stored before it, plus the cap for every day since), and every report that
+// day is held to it. An account's first report ever has only the age cap.
+// state: { points (stored now), day ('YYYY-MM-DD' of the last report, or
+// null), dayMax (that day's ceiling, or null) }. Returns { limit (the most
+// the total may be now), day, dayMax (to store) }.
+const dayStr = (ms) => new Date(ms).toISOString().slice(0, 10);
+function dayLimit({ points = 0, day = null, dayMax = null } = {}, now = Date.now()) {
+  const today = dayStr(now);
+  const max = Number(dayMax);
+  if (day === today && dayMax != null && Number.isFinite(max)) return { limit: max, day: today, dayMax: max };
+  const last = typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day) ? Date.parse(`${day}T00:00:00Z`) : NaN;
+  if (!Number.isFinite(last)) return { limit: Infinity, day: today, dayMax: null };
+  const days = Math.max(1, Math.round((Date.parse(`${today}T00:00:00Z`) - last) / DAY_MS));
+  const limit = Math.max(0, Math.round(Number(points) || 0)) + days * DAILY_POINTS_CAP;
+  return { limit, day: today, dayMax: limit };
+}
+
+/**
+ * The total to store for a claim, held to the account's age (cappedPoints)
+ * and to the day's rise (dayLimit): { stored, day, dayMax, clamped }.
+ * A first report ever sets the day's ceiling at what's stored plus the cap.
+ */
+function reportedPoints(claim, createdAt, state = {}, now = Date.now()) {
+  const aged = cappedPoints(claim, createdAt, now);
+  const lim = dayLimit(state, now);
+  const stored = Math.min(aged, lim.limit);
+  const dayMax = lim.dayMax == null ? stored + DAILY_POINTS_CAP : lim.dayMax;
+  return { stored, day: lim.day, dayMax, clamped: Math.max(0, Math.round(Number(claim) || 0)) > stored };
+}
+
+module.exports = { DAILY_POINTS_CAP, OLD_DAILY_POINTS_CAP, CAP_CHANGED_FROM, pointsCap, cappedPoints, dayLimit, reportedPoints };
