@@ -188,6 +188,11 @@ async function guestQuota(pool, ep, lim, req, res, next) {
     const c = rows[0] || {};
     if (guestOverLimit(c, lim)) return signIn(Number(c.install) || 0);
     const ins = await pool.query('INSERT INTO ai_guest_log (install_id, ip_hash) VALUES ($1, $2) RETURNING id', [installId, ip]);
+    // now and then, drop guest records older than the 90 days the privacy policy promises
+    if (Math.random() < PRUNE_CHANCE) {
+      pool.query(`DELETE FROM ai_guest_log WHERE logged_at < NOW() - INTERVAL '90 days'`)
+        .catch((e) => console.error('ai_guest_log prune failed:', e.message));
+    }
     const id = ins?.rows?.[0]?.id;
     if (id) res.locals.aiRefund = () => pool.query('DELETE FROM ai_guest_log WHERE id = $1', [id]).catch(() => {});
     const used = Math.min((Number(c.install) || 0) + 1, lim.guest);
