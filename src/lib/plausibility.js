@@ -33,6 +33,7 @@ const LIMITS = {
   burstSets: 3,
   burstMs: 20000,
   backDays: 7,
+  latePerWeek: 3,
   futureSlackMs: 5 * 60000,
   dupMs: 60000,
   sportCheckMin: 180,
@@ -126,9 +127,17 @@ function raceSportBlocked(s) {
   return km > 0 && dur > 0 && !checkKm(String((s && s.sport) || ''), km, dur).ok;
 }
 
+/**
+ * A late log: added through the app's "Forgot to log a workout?" (late:
+ * true, even for earlier today) or an older log saved on a later day
+ * (backdated: true); the app's isLateLog. A race counts only what was
+ * tracked live, so it ignores these (challengeRules.js progress).
+ */
+const isLateLog = (e) => !!e && typeof e === 'object' && (e.late === true || e.backdated === true);
+
 /** a log's time that hasn't come yet (a clock a few minutes out aside) */
 const inFuture = (ts, now = Date.now()) => Number.isFinite(ts) && ts > now + L.futureSlackMs;
 
 module.exports = {
-  LIMITS, KM_TOP_SPEED, KM_CHECK_SPEED, exType, minWorkoutSec, paceLevel, raceWorkoutBlocked, checkKm, raceSportBlocked, inFuture,
+  LIMITS, KM_TOP_SPEED, KM_CHECK_SPEED, exType, minWorkoutSec, paceLevel, raceWorkoutBlocked, checkKm, raceSportBlocked, inFuture, isLateLog,
 };

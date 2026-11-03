@@ -94,7 +94,9 @@ test('plausibility: the server\'s limits, speeds and race verdicts are the app\'
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fc-cross-'));
   try {
     fs.writeFileSync(path.join(dir, 'sportDistance.mjs'), read('src/lib/sportDistance.js'));
-    fs.writeFileSync(path.join(dir, 'plausibility.mjs'), read('src/lib/plausibility.js').replace("'./sportDistance.js'", "'./sportDistance.mjs'"));
+    fs.writeFileSync(path.join(dir, 'days.mjs'), read('src/lib/days.js'));
+    fs.writeFileSync(path.join(dir, 'plausibility.mjs'), read('src/lib/plausibility.js')
+      .replace("'./sportDistance.js'", "'./sportDistance.mjs'").replace("'./days.js'", "'./days.mjs'"));
     const app = await import(pathToFileURL(path.join(dir, 'plausibility.mjs')).href);
     const dist = await import(pathToFileURL(path.join(dir, 'sportDistance.mjs')).href);
     const api = require('../src/lib/plausibility');
@@ -111,6 +113,10 @@ test('plausibility: the server\'s limits, speeds and race verdicts are the app\'
     for (const h of workouts) {
       assert.equal(api.raceWorkoutBlocked(h), app.raceWorkoutBlocked(h), JSON.stringify({ ...h, exercises: h.exercises.map((e) => [e.name, e.sets.length, e.sets[0].r]) }));
       assert.equal(api.paceLevel(h.exercises, h.durationSec), app.checkPace(h.exercises, h.durationSec).level);
+    }
+    // late logs ("Forgot to log"): the same ones are late
+    for (const e of [{}, { late: true }, { backdated: true }, { late: false }, { late: 'yes' }, { backdated: 1 }, null, 'x']) {
+      assert.equal(api.isLateLog(e), app.isLateLog(e), JSON.stringify(e));
     }
     for (const sport of ['Running', 'Cycling', 'Swimming', 'Walking', 'Hiking', 'Rowing', 'Football']) {
       for (const duration of [0, 30, 60, 180, 361]) for (const km of [0, 1, 5, 12, 22, 40, 400]) {

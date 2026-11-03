@@ -61,3 +61,24 @@ test('the stake moved: no more than the loser has, nor past 100 a week off the s
   assert.equal(R.transfer(100, 1000, 75), 25);
   assert.equal(R.transfer(25, 1000, 100), 0);
 });
+
+test('late logs ("Forgot to log": late or backdated) never count toward a race; live ones do', () => {
+  const reps = R.cleanSpec({ kind: 'target', target: { key: 'pushups', amount: 100 } }).spec;
+  const history = [
+    H(T0 + 10, 'Live', [{ name: 'Push-up', sets: [set(40)] }]),
+    { ...H(T0 + 20, 'Forgot', [{ name: 'Push-up', sets: [set(60)] }]), late: true, loggedAt: T0 + 30 },
+    { ...H(T0 + 25, 'Yesterday', [{ name: 'Push-up', sets: [set(60)] }]), backdated: true },
+  ];
+  assert.deepEqual(R.progress(reps, { history }, T0, T0 + day), { value: 40, reachedAt: null });
+  const run = R.cleanSpec({ kind: 'target', target: { key: 'run', amount: 10 } }).spec;
+  const sports = [
+    { id: 'a', ts: T0 + 10, sport: 'Running', duration: 30, km: 5 },
+    { id: 'b', ts: T0 + 20, sport: 'Running', duration: 30, km: 6, late: true },
+    { id: 'c', ts: T0 + 30, sport: 'Running', duration: 30, km: 6, backdated: true },
+  ];
+  assert.deepEqual(R.progress(run, { sports }, T0, T0 + day), { value: 5, reachedAt: null });
+  const legs = R.cleanSpec({ kind: 'routine', routine: { name: 'Leg Day', exercises: ['Squat'], times: 1 } }).spec;
+  const late = [{ ...H(T0 + 5, 'Leg Day', [{ name: 'Squat', sets: [set(5)] }]), late: true }];
+  assert.equal(R.progress(legs, { history: late }, T0, T0 + day).value, 0);
+  assert.equal(R.progress(legs, { history: [{ ...late[0], late: false }] }, T0, T0 + day).value, 1);
+});

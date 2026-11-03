@@ -12,11 +12,14 @@
 // would refuse as impossible (lib/plausibility.js: more reps in a set than
 // anyone does, sets faster than the time allows, a 7-hour session, a distance
 // faster than anyone goes, a time not come yet) doesn't count at all. (Forfeits, words
-// on the result card, are no longer taken; older races keep theirs.) Reps are taken on trust, with caps
+// on the result card, are no longer taken; older races keep theirs.) Nor does
+// a late log (added in the app's "Forgot to log a workout?", flagged late or
+// backdated in the backup: plausibility.js isLateLog): only workouts and
+// sessions tracked live count. Reps are taken on trust, with caps
 // (a set counts for at most SET_REPS, a day for at most DAY_REPS): the only
 // person you cheat is yourself.
 
-const { raceWorkoutBlocked, raceSportBlocked, inFuture } = require('./plausibility');
+const { raceWorkoutBlocked, raceSportBlocked, inFuture, isLateLog } = require('./plausibility');
 
 const KINDS = ['points', 'target', 'routine'];
 const DAYS = [1, 3, 7, 14];
@@ -85,12 +88,13 @@ const done = (s) => s && s.done !== false;
  * (ms): { value, reachedAt } (reachedAt: ms of the log that got there, or null).
  * history / sports: the items of the player's backed-up collections. now:
  * logs after it (plus a few minutes) are in the future and don't count.
- * Logs the app's plausibility rules refuse don't count (lib/plausibility.js).
+ * Logs the app's plausibility rules refuse don't count (lib/plausibility.js),
+ * nor late logs ("Forgot to log": isLateLog).
  */
 function progress(spec, { history = [], sports = [] }, start, end, now = Infinity) {
   const inside = (x) => Number.isFinite(x?.ts) && x.ts >= start && x.ts <= end && !inFuture(x.ts, now);
-  history = (history || []).filter((h) => h && !raceWorkoutBlocked(h));
-  sports = (sports || []).filter((s) => s && !raceSportBlocked(s));
+  history = (history || []).filter((h) => h && !isLateLog(h) && !raceWorkoutBlocked(h));
+  sports = (sports || []).filter((s) => s && !isLateLog(s) && !raceSportBlocked(s));
   const events = [];   // [ts, amount]
   if (spec.kind === 'target') {
     const t = TARGETS[spec.target.key];
