@@ -82,3 +82,15 @@ test('late logs ("Forgot to log": late or backdated) never count toward a race; 
   assert.equal(R.progress(legs, { history: late }, T0, T0 + day).value, 0);
   assert.equal(R.progress(legs, { history: [{ ...late[0], late: false }] }, T0, T0 + day).value, 1);
 });
+
+test('a workout imported from another app (imported: true) never counts toward a race', () => {
+  const reps = R.cleanSpec({ kind: 'target', target: { key: 'pushups', amount: 100 } }).spec;
+  const history = [
+    H(T0 + 10, 'Live', [{ name: 'Push-up', sets: [set(40)] }]),
+    { ...H(T0 + 20, 'From Strong', [{ name: 'Push-up', sets: [set(80)] }]), imported: true, importedFrom: 'strong' },
+  ];
+  assert.deepEqual(R.progress(reps, { history }, T0, T0 + day), { value: 40, reachedAt: null });
+  const legs = R.cleanSpec({ kind: 'routine', routine: { name: 'Leg Day', exercises: ['Squat'], times: 1 } }).spec;
+  const imp = [{ ...H(T0 + 5, 'Leg Day', [{ name: 'Squat', sets: [set(5)] }]), imported: true }];
+  assert.equal(R.progress(legs, { history: imp }, T0, T0 + day).value, 0);
+});

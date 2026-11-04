@@ -115,11 +115,12 @@ const done = (s) => s && s.done !== false;
  * history / sports: the items of the player's backed-up collections. now:
  * logs after it (plus a few minutes) are in the future and don't count.
  * Logs the app's plausibility rules refuse don't count (lib/plausibility.js),
- * nor late logs ("Forgot to log": isLateLog).
+ * nor late logs ("Forgot to log": isLateLog), nor imported workouts.
  */
 function progress(spec, { history = [], sports = [] }, start, end, now = Infinity) {
   const inside = (x) => Number.isFinite(x?.ts) && x.ts >= start && x.ts <= end && !inFuture(x.ts, now);
-  history = (history || []).filter((h) => h && !isLateLog(h) && !raceWorkoutBlocked(h));
+  // (nor a workout imported from another app or a backup file: imported: true)
+  history = (history || []).filter((h) => h && !isLateLog(h) && h.imported !== true && !raceWorkoutBlocked(h));
   sports = (sports || []).filter((s) => s && !isLateLog(s) && !raceSportBlocked(s));
   const events = [];   // [ts, amount]
   if (spec.kind === 'target') {
