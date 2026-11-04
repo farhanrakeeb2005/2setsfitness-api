@@ -94,3 +94,12 @@ test('a workout imported from another app (imported: true) never counts toward a
   const imp = [{ ...H(T0 + 5, 'Leg Day', [{ name: 'Squat', sets: [set(5)] }]), imported: true }];
   assert.equal(R.progress(legs, { history: imp }, T0, T0 + day).value, 0);
 });
+
+test('a warm-up set counts half its reps toward a race; drop and failure sets count in full', () => {
+  const reps = R.cleanSpec({ kind: 'target', target: { key: 'pushups', amount: 100 } }).spec;
+  const history = [
+    H(T0 + 10, 'Push', [{ name: 'Push-up', sets: [{ ...set(15), type: 'warmup' }, set(20), { ...set(10), type: 'drop' }, { ...set(8), type: 'failure' }] }]),
+  ];
+  // 7.5 (rounded down with the rest) + 20 + 10 + 8
+  assert.equal(R.progress(reps, { history }, T0, T0 + day).value, 45);
+});

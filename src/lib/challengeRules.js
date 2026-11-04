@@ -132,9 +132,11 @@ function progress(spec, { history = [], sports = [] }, start, end, now = Infinit
         for (const ex of Array.isArray(h.exercises) ? h.exercises : []) {
           if (!t.match.test(String(ex?.name || ''))) continue;
           for (const s of Array.isArray(ex.sets) ? ex.sets : []) {
-            if (done(s)) n += Math.min(SET_REPS, Math.max(0, Math.round(Number(s.r) || 0)));
+            // (a warm-up set's reps count half: the owner's rule, 2026-11-04)
+            if (done(s)) n += Math.min(SET_REPS, Math.max(0, Math.round(Number(s.r) || 0))) * (s.type === 'warmup' ? 0.5 : 1);
           }
         }
+        n = Math.floor(n);
         const d = dayOf(h.ts);
         const room = DAY_REPS - (perDay[d] || 0);
         n = Math.min(n, room);
