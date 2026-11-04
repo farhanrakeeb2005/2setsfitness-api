@@ -91,6 +91,8 @@ test('help facts: the app\'s SERVER_DAILY_CAP, STAKE_MIN_LOGS and STAKE_MAX are 
   const { DAILY_POINTS_CAP } = require('../src/lib/pointsCap');
   const R = require('../src/lib/challengeRules');
   assert.equal(exported(src, 'SERVER_DAILY_CAP'), DAILY_POINTS_CAP);
+  // the app counts no more than this in a day itself (its pointValues.js), so its total is what the server keeps
+  assert.equal(exported(read('src/lib/pointValues.js'), 'DAILY_POINTS_CAP'), DAILY_POINTS_CAP);
   assert.equal(exported(src, 'STAKE_MIN_LOGS'), R.STAKE_MIN_LOGS);
   assert.equal(exported(src, 'STAKE_MAX'), Math.max(...R.STAKES));
 });
@@ -130,11 +132,36 @@ test('plausibility: the server\'s limits, speeds and race verdicts are the app\'
     for (const e of [{}, { late: true }, { backdated: true }, { late: false }, { late: 'yes' }, { backdated: 1 }, null, 'x']) {
       assert.equal(api.isLateLog(e), app.isLateLog(e), JSON.stringify(e));
     }
-    for (const sport of ['Running', 'Cycling', 'Swimming', 'Walking', 'Hiking', 'Rowing', 'Football']) {
-      for (const duration of [0, 30, 60, 180, 361]) for (const km of [0, 1, 5, 12, 22, 40, 400]) {
-        assert.equal(api.raceSportBlocked({ sport, duration, km }), app.raceSportBlocked({ sport, duration, km }), `${sport} ${duration} ${km}`);
+    for (const sport of ['Running', 'Cycling', 'Swimming', 'Walking', 'Hiking', 'Rowing', 'Football', 'Wrestling', 'MMA', 'Golf']) {
+      for (const duration of [0, 30, 60, 91, 150, 151, 180, 181, 240, 241, 300, 301, 361]) for (const km of [0, 1, 5, 12, 22, 40, 400]) {
+        for (const intensity of [undefined, 'easy', 'hard']) {
+          assert.equal(api.raceSportBlocked({ sport, duration, km, intensity }), app.raceSportBlocked({ sport, duration, km, intensity }), `${sport} ${duration} ${km} ${intensity}`);
+        }
       }
     }
+    // the sports rules from 4 Nov 2026: start, proof, the day's 3rd, ending after it was logged, overlaps
+    assert.equal(api.SPORT_RULES_FROM, app.SPORT_RULES_FROM);
+    assert.deepEqual(api.ENDURANCE_SPORTS, app.ENDURANCE_SPORTS);
+    const T = Date.UTC(2026, 10, 5, 9);
+    const M = 60000;
+    const day = [];
+    let n = 0;
+    for (const dur of [30, 60, 95]) for (const proof of [{}, { timed: true }, { photo: 'file:///x.jpg' }]) for (const gap of [-30, 0, 5, 120]) {
+      n += 1;
+      const ts = T + n * 3 * 3600e3;
+      day.push({ id: `s${n}`, sport: 'Football', duration: dur, ts, startedAt: ts - (dur + gap) * M, ...proof });
+    }
+    day.push({ id: 'nostart', sport: 'Football', duration: 30, ts: T + 5 * M });
+    day.push({ id: 'typed', sport: 'Football', duration: 30, ts: T + 6 * M, startTime: '08:00' });
+    const history = [{ startedAt: T + 3 * 3600e3 - 40 * M, durationSec: 1800, exercises: [] }];
+    for (const s of day) {
+      for (const others of [[], day]) {
+        assert.equal(api.raceSportBlocked(s, { others, history }), app.raceSportBlocked(s, { others, history }), `${s.id} with ${others.length}`);
+      }
+    }
+    assert.deepEqual(api.raceSportsKept(day, history).map((s) => s.id), app.raceSportsKept(day, history).map((s) => s.id));
+    // what he logged: 360 minutes of MMA is refused for a race either way
+    assert.equal(api.raceSportBlocked({ sport: 'MMA', duration: 360, ts: T, startedAt: T - 360 * M, timed: true }), true);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 

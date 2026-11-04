@@ -25,6 +25,9 @@ test('race: impossible reps, sets, set length and pace are ignored; unusual ones
   assert.equal(P.raceSportBlocked({ sport: 'Running', duration: 60, km: 26 }), true);
   assert.equal(P.raceSportBlocked({ sport: 'Running', duration: 60, km: 21 }), false);
   assert.equal(P.raceSportBlocked({ sport: 'Football', duration: 361 }), true);
+  assert.equal(P.raceSportBlocked({ sport: 'Football', duration: 181 }), true);
+  assert.equal(P.raceSportBlocked({ sport: 'Running', duration: 290 }), false);   // endurance: up to 5 h
+  assert.equal(P.raceSportBlocked({ sport: 'MMA', duration: 151, intensity: 'hard' }), true);
 });
 
 test('race: warm-up sets are left out of the set count and the pace, but their reps are checked', () => {
@@ -52,24 +55,30 @@ test('race progress skips impossible logs and logs in the future', () => {
   ];
   assert.deepEqual(R.progress(spec, { history }, T0, T0 + 7 * day, T0 + day), { value: 40, reachedAt: null });
   const run = R.cleanSpec({ kind: 'target', target: { key: 'run', amount: 10 } }).spec;
-  const sports = [{ ts: T0 + 1, sport: 'Running', km: 5, duration: 30 }, { ts: T0 + 2, sport: 'Running', km: 40, duration: 30 }];
+  const sports = [{ ts: T0 + 1, sport: 'Running', km: 5, duration: 30, startedAt: T0 - 3 * 3600e3 }, { ts: T0 + 2, sport: 'Running', km: 40, duration: 30, startedAt: T0 - 3600e3 }];
   assert.deepEqual(R.progress(run, { sports }, T0, T0 + day, T0 + day), { value: 5, reachedAt: null });
 });
 
 test('points: the total rises at most the daily cap a day since the last report', () => {
   const at = (iso) => Date.parse(iso);
-  // the first report ever: the age cap only, and the day's ceiling set from it
-  assert.deepEqual(dayLimit({}, at('2026-11-03T08:00:00Z')), { limit: Infinity, day: '2026-11-03', dayMax: null });
-  const first = reportedPoints(3000, '2026-01-01', {}, at('2026-11-03T08:00:00Z'));
-  assert.deepEqual(first, { stored: 3000, day: '2026-11-03', dayMax: 3000 + DAILY_POINTS_CAP, clamped: false });
+  assert.equal(DAILY_POINTS_CAP, 500);
+  // the first report ever: the age cap only, and the day's ceiling set from it (5 Nov: 500)
+  assert.deepEqual(dayLimit({}, at('2026-11-05T08:00:00Z')), { limit: Infinity, day: '2026-11-05', dayMax: null });
+  const first = reportedPoints(3000, '2026-01-01', {}, at('2026-11-05T08:00:00Z'));
+  assert.deepEqual(first, { stored: 3000, day: '2026-11-05', dayMax: 3000 + DAILY_POINTS_CAP, clamped: false });
+  // (a day from before 4 Nov keeps its 800)
+  assert.equal(reportedPoints(3000, '2026-01-01', {}, at('2026-11-03T08:00:00Z')).dayMax, 3800);
   // the next day: what was stored plus one day's cap
-  const next = reportedPoints(9000, '2026-01-01', { points: 3000, day: '2026-11-03', dayMax: 3800 }, at('2026-11-04T09:00:00Z'));
-  assert.deepEqual(next, { stored: 3800, day: '2026-11-04', dayMax: 3800, clamped: true });
+  const next = reportedPoints(9000, '2026-01-01', { points: 3000, day: '2026-11-05', dayMax: 3500 }, at('2026-11-06T09:00:00Z'));
+  assert.deepEqual(next, { stored: 3500, day: '2026-11-06', dayMax: 3500, clamped: true });
   // the same day again: held to the day's ceiling, however often it reports
-  assert.equal(reportedPoints(4500, '2026-01-01', { points: 3800, day: '2026-11-04', dayMax: 3800 }, at('2026-11-04T20:00:00Z')).stored, 3800);
-  assert.equal(reportedPoints(3500, '2026-01-01', { points: 3800, day: '2026-11-04', dayMax: 3800 }, at('2026-11-04T21:00:00Z')).stored, 3500);   // down: as reported
-  // three days away: three days' cap
-  assert.equal(reportedPoints(9000, '2026-01-01', { points: 3000, day: '2026-11-01', dayMax: 3100 }, at('2026-11-04T09:00:00Z')).stored, 3000 + 3 * DAILY_POINTS_CAP);
+  assert.equal(reportedPoints(4500, '2026-01-01', { points: 3500, day: '2026-11-06', dayMax: 3500 }, at('2026-11-06T20:00:00Z')).stored, 3500);
+  assert.equal(reportedPoints(3200, '2026-01-01', { points: 3500, day: '2026-11-06', dayMax: 3500 }, at('2026-11-06T21:00:00Z')).stored, 3200);   // down: as reported
+  // three days away, over the change: 2 and 3 Nov at 800, 4 Nov at 500
+  assert.equal(reportedPoints(9000, '2026-01-01', { points: 3000, day: '2026-11-01', dayMax: 3100 }, at('2026-11-04T09:00:00Z')).stored, 3000 + 2 * 800 + 500);
   // still under the account's age cap
-  assert.equal(reportedPoints(9000, new Date(at('2026-11-04T00:00:00Z')), { points: 0, day: '2026-11-03', dayMax: 0 }, at('2026-11-04T09:00:00Z')).stored, DAILY_POINTS_CAP);
+  assert.equal(reportedPoints(9000, new Date(at('2026-11-05T00:00:00Z')), { points: 0, day: '2026-11-04', dayMax: 0 }, at('2026-11-05T09:00:00Z')).stored, DAILY_POINTS_CAP);
+  // a lower claim (the app's caps took points back) is stored as it is, the day's ceiling kept
+  const down = reportedPoints(560, '2026-10-20', { points: 1196, day: '2026-11-04', dayMax: 1196 }, at('2026-11-04T15:00:00Z'));
+  assert.deepEqual(down, { stored: 560, day: '2026-11-04', dayMax: 1196, clamped: false });
 });

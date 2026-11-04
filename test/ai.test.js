@@ -105,18 +105,26 @@ test('points are held to what the account age makes believable', () => {
   assert.equal(cappedPoints(500, null, now), 500);                                // no created_at: counts from now
 });
 
-test('the daily points cap drops to 800 from 1 Nov 2026, days before keep 2000', () => {
-  const { DAILY_POINTS_CAP, CAP_CHANGED_FROM, pointsCap, cappedPoints } = require('../src/lib/pointsCap');
-  assert.equal(DAILY_POINTS_CAP, 800);
+test('the daily points cap: 2000 a day, 800 from 1 Nov 2026, 500 from 4 Nov; days keep the allowance they began with', () => {
+  const { DAILY_POINTS_CAP, MID_DAILY_POINTS_CAP, CAP_CHANGED_FROM, CAP_LOWERED_FROM, pointsCap, cappedPoints, capOfDay } = require('../src/lib/pointsCap');
+  assert.equal(DAILY_POINTS_CAP, 500);
+  assert.equal(MID_DAILY_POINTS_CAP, 800);
+  assert.equal(CAP_LOWERED_FROM, Date.UTC(2026, 10, 4));
+  assert.equal(capOfDay(CAP_CHANGED_FROM - 1), 2000);
+  assert.equal(capOfDay(CAP_CHANGED_FROM), 800);
+  assert.equal(capOfDay(CAP_LOWERED_FROM), 500);
   const D = 864e5;
-  // an account made after the change: 800 a day
-  const made = CAP_CHANGED_FROM + 5 * 3600e3;
-  assert.equal(pointsCap(made, made + 1000), 800);
-  assert.equal(pointsCap(made, made + 9.5 * D), 10 * 800);
-  assert.equal(cappedPoints(9000, made, made + 9.5 * D), 8000);
-  // made 10 days before the change, read 5 days after: 10 days at 2000, 6 at 800
+  // an account made after the last change: 500 a day
+  const made = CAP_LOWERED_FROM + 5 * 3600e3;
+  assert.equal(pointsCap(made, made + 1000), 500);
+  assert.equal(pointsCap(made, made + 9.5 * D), 10 * 500);
+  assert.equal(cappedPoints(9000, made, made + 9.5 * D), 5000);
+  // made on 1 Nov 05:00 UTC: its days starting 1, 2, 3 Nov keep 800, then 500
+  const nov1 = CAP_CHANGED_FROM + 5 * 3600e3;
+  assert.equal(pointsCap(nov1, nov1 + 9.5 * D), 3 * 800 + 7 * 500);
+  // made 10 days before the first change, read 5 days after it: 10 days at 2000, 3 at 800, 3 at 500
   const old = CAP_CHANGED_FROM - 10 * D;
-  assert.equal(pointsCap(old, CAP_CHANGED_FROM + 5 * D), 10 * 2000 + 6 * 800);
+  assert.equal(pointsCap(old, CAP_CHANGED_FROM + 5 * D), 10 * 2000 + 3 * 800 + 3 * 500);
   // a 10-day account holding 9,000 points before the change is never cut after it
   const acct = CAP_CHANGED_FROM - 10 * D + 3600e3;
   const before = cappedPoints(9000, acct, CAP_CHANGED_FROM - 1);

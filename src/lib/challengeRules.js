@@ -10,8 +10,11 @@
 // If nobody gets there before the end, whoever got closest wins; level is a
 // draw. A stake (points) goes from the loser to the winner. A log the app
 // would refuse as impossible (lib/plausibility.js: more reps in a set than
-// anyone does, sets faster than the time allows, a 7-hour session, a distance
-// faster than anyone goes, a time not come yet) doesn't count at all. (Forfeits, words
+// anyone does, sets faster than the time allows, a session longer than its
+// sport allows, a distance faster than anyone goes, a time not come yet,
+// and from 4 Nov 2026 a session with no start, over 90 minutes or the day's
+// 3rd without proof, ending after it was logged, or overlapping another
+// session or a workout) doesn't count at all. (Forfeits, words
 // on the result card, are no longer taken; older races keep theirs.) Nor does
 // a late log (added in the app's "Forgot to log a workout?", flagged late or
 // backdated in the backup: plausibility.js isLateLog): only workouts and
@@ -19,7 +22,7 @@
 // (a set counts for at most SET_REPS, a day for at most DAY_REPS): the only
 // person you cheat is yourself.
 
-const { raceWorkoutBlocked, raceSportBlocked, inFuture, isLateLog } = require('./plausibility');
+const { raceWorkoutBlocked, raceSportsKept, inFuture, isLateLog } = require('./plausibility');
 
 const KINDS = ['points', 'target', 'routine'];
 const DAYS = [1, 3, 7, 14];
@@ -121,7 +124,8 @@ function progress(spec, { history = [], sports = [] }, start, end, now = Infinit
   const inside = (x) => Number.isFinite(x?.ts) && x.ts >= start && x.ts <= end && !inFuture(x.ts, now);
   // (nor a workout imported from another app or a backup file: imported: true)
   history = (history || []).filter((h) => h && !isLateLog(h) && h.imported !== true && !raceWorkoutBlocked(h));
-  sports = (sports || []).filter((s) => s && !isLateLog(s) && !raceSportBlocked(s));
+  // (a session against the player's other live sessions and workouts: overlaps, the day's 3rd)
+  sports = raceSportsKept((sports || []).filter((s) => s && !isLateLog(s)), history);
   const events = [];   // [ts, amount]
   if (spec.kind === 'target') {
     const t = TARGETS[spec.target.key];

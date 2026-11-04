@@ -5,9 +5,13 @@
 // or a script could still back up anything, so challenge races
 // (challengeRules.js progress) ignore every log the app would have refused:
 // more reps in a set than anyone does, more sets than a workout holds, sets
-// faster than the time allows, a session longer than 6 h, a distance faster
-// than anyone goes, a log in the future. Weights aren't judged here: the
-// server doesn't know the account's units or body weight.
+// faster than the time allows, a sports session longer than its sport allows
+// (3 h, 5 h for endurance sports, less at Hard), a distance faster than
+// anyone goes, a log in the future; and from SPORT_RULES_FROM a session with
+// no minutes or start, one over 90 minutes without proof (a photo or the
+// live timer), the day's 3rd without proof, one ending after it was logged,
+// or one overlapping an earlier session or a workout. Weights aren't judged
+// here: the server doesn't know the account's units or body weight.
 // A set marked as a warm-up (type: 'warmup', the app's lib/setTypes.js) isn't
 // in the set count or the pace, as in the app; its reps are still checked.
 
@@ -38,15 +42,24 @@ const LIMITS = {
   latePerWeek: 3,
   futureSlackMs: 5 * 60000,
   dupMs: 60000,
-  sportCheckMin: 180,
-  sportBlockMin: 360,
+  sportCheckMin: 120,
+  sportBlockMin: 180,
+  sportLongBlockMin: 300,
+  sportHardCheckMin: 90,
+  sportHardBlockMin: 150,
+  sportLongHardBlockMin: 240,
+  sportProofMin: 90,
+  sportsPerDay: 3,
+  sportDayMin: 240,
   sleepCheckH: 11,
   sleepBlockH: 14,
   sleepDayBlockH: 16,
   kcalCheck: 3000,
   kcalBlock: 6000,
   proteinCheck: 200,
-  dayKcalCheck: 10000,
+  dayKcalCheck: 6000,
+  dayKcalBlock: 10000,
+  foodDupMs: 5 * 60000,
   waterCheck: 25,
   waterBlock: 40,
   stepsBlock: 80000,
@@ -125,12 +138,52 @@ function checkKm(sport, km, minutes) {
   return { ok: false, metres: km / 1000 <= max ? km : null };
 }
 
-/** a backed-up sports session a race ignores: over 6 h, or faster than anyone goes */
-function raceSportBlocked(s) {
-  const dur = num(s && s.duration), km = num(s && s.km);
-  if (dur > L.sportBlockMin) return true;
-  return km > 0 && dur > 0 && !checkKm(String((s && s.sport) || ''), km, dur).ok;
+// ── sports (the app's plausibility.js: the same rules, as far as a backup shows them) ──
+const SPORT_RULES_FROM = Date.UTC(2026, 10, 4);   // 4 Nov 2026
+const ENDURANCE_SPORTS = ['Running', 'Cycling', 'Swimming', 'Hiking', 'Walking', 'Rowing', 'Golf', 'Cricket'];
+const DAY_MS = 864e5;
+/** a session's limits in minutes, { check, block }, by its sport and intensity */
+function sportLimits(kind, intensity) {
+  const long = ENDURANCE_SPORTS.includes(String(kind || ''));
+  if (intensity === 'hard') return { check: L.sportHardCheckMin, block: long ? L.sportLongHardBlockMin : L.sportHardBlockMin };
+  return { check: L.sportCheckMin, block: long ? L.sportLongBlockMin : L.sportBlockMin };
 }
+/** proof a session happened: timed with the app's live timer, or a photo (its path on the phone) */
+const hasProof = (e) => !!e && (e.timed === true || (typeof e.photo === 'string' && e.photo.length > 0));
+const minsOf = (hhmm) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+  return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+const overlaps = (a, b) => !!a && !!b && Math.min(a[1], b[1]) - Math.max(a[0], b[0]) > L.overlapMs;
+const workoutWindow = (h) => (num(h && h.startedAt) > 0 && num(h && h.durationSec) > 0 ? [num(h.startedAt), num(h.startedAt) + num(h.durationSec) * 1000] : null);
+const raceWindow = (s) => (num(s && s.startedAt) > 0 && num(s && s.duration) > 0 ? [num(s.startedAt), num(s.startedAt) + num(s.duration) * 60000] : null);
+const utcDay = (ts) => Math.floor(num(ts) / DAY_MS);
+
+/**
+ * A backed-up sports session a race ignores (the app refuses it): longer
+ * than its sport allows, or faster than anyone goes; from SPORT_RULES_FROM
+ * also no minutes or start, over sportProofMin minutes without proof, the
+ * UTC day's sportsPerDay-th without proof, ending after it was logged, or
+ * overlapping an earlier session (others: the player's sessions) or a
+ * workout (history), by the startedAt the app saves.
+ */
+function raceSportBlocked(s, { others = [], history = [] } = {}) {
+  const dur = num(s && s.duration), km = num(s && s.km);
+  if (dur > sportLimits(String((s && s.sport) || ''), s && s.intensity).block) return true;
+  if (km > 0 && dur > 0 && !checkKm(String((s && s.sport) || ''), km, dur).ok) return true;
+  const ts = num(s && s.ts);
+  if (!(ts >= SPORT_RULES_FROM)) return false;
+  if (!(dur > 0) || (!(num(s.startedAt) > 0) && minsOf(s.startTime) == null)) return true;
+  if (!hasProof(s) && dur > L.sportProofMin) return true;
+  const earlier = (others || []).filter((o) => o && o !== s && (num(o.ts) < ts || (num(o.ts) === ts && String(o.id || '') < String(s.id || ''))));
+  if (!hasProof(s) && earlier.filter((o) => utcDay(o.ts) === utcDay(ts)).length === L.sportsPerDay - 1) return true;
+  const win = raceWindow(s);
+  if (!win) return false;
+  if (win[1] > ts + L.futureSlackMs) return true;
+  return earlier.some((o) => overlaps(win, raceWindow(o))) || (history || []).some((h) => h && h.imported !== true && overlaps(win, workoutWindow(h)));
+}
+/** a player's backed-up sessions a race counts (every one raceSportBlocked lets through) */
+const raceSportsKept = (sports = [], history = []) => (sports || []).filter((s) => s && !raceSportBlocked(s, { others: sports, history }));
 
 /**
  * A late log: added through the app's "Forgot to log a workout?" (late:
@@ -145,4 +198,5 @@ const inFuture = (ts, now = Date.now()) => Number.isFinite(ts) && ts > now + L.f
 
 module.exports = {
   LIMITS, KM_TOP_SPEED, KM_CHECK_SPEED, exType, minWorkoutSec, paceLevel, raceWorkoutBlocked, checkKm, raceSportBlocked, inFuture, isLateLog,
+  SPORT_RULES_FROM, ENDURANCE_SPORTS, sportLimits, hasProof, raceSportsKept,
 };

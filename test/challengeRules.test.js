@@ -5,6 +5,9 @@ const R = require('../src/lib/challengeRules');
 const H = (ts, name, exercises) => ({ id: String(ts), ts, name, exercises });
 const set = (r, done = true) => ({ w: 0, r, done });
 const day = 864e5, T0 = 1_800_000_000_000;
+// a session as the app saves one now: its minutes and when it began (the
+// k-th of the day an hour apart, so none overlap), timed with the live timer
+const live = (s, k = 0) => ({ duration: 30, ...s, startedAt: s.ts - (k + 1) * 3600e3, timed: true });
 
 test('a challenge body: defaults to a 7-day points race, rejects what is not on offer', () => {
   assert.deepEqual(R.cleanSpec({}).spec, { kind: 'points', days: 7, stake: 0, forfeit: null, target: null, routine: null });
@@ -34,7 +37,7 @@ test('reps: done sets of the matching exercise inside the window, capped per set
 
 test('km: logged sport distance; a routine: a workout of that name with every exercise done', () => {
   const run = R.cleanSpec({ kind: 'target', target: { key: 'run', amount: 10 } }).spec;
-  const sports = [{ ts: T0 + 5, sport: 'Running', km: 6 }, { ts: T0 + 9, sport: 'Cycling', km: 30 }, { ts: T0 + 50, sport: 'Running', km: 4.5 }];
+  const sports = [live({ ts: T0 + 5, sport: 'Running', km: 6 }, 2), live({ ts: T0 + 9, sport: 'Cycling', km: 30 }, 1), live({ ts: T0 + 50, sport: 'Running', km: 4.5 }, 0)];
   assert.deepEqual(R.progress(run, { sports }, T0, T0 + day), { value: 10.5, reachedAt: T0 + 50 });
   const legs = R.cleanSpec({ kind: 'routine', routine: { name: 'Leg Day', exercises: ['Squat', 'Calf raise'], times: 2 } }).spec;
   const history = [
@@ -72,9 +75,9 @@ test('late logs ("Forgot to log": late or backdated) never count toward a race; 
   assert.deepEqual(R.progress(reps, { history }, T0, T0 + day), { value: 40, reachedAt: null });
   const run = R.cleanSpec({ kind: 'target', target: { key: 'run', amount: 10 } }).spec;
   const sports = [
-    { id: 'a', ts: T0 + 10, sport: 'Running', duration: 30, km: 5 },
-    { id: 'b', ts: T0 + 20, sport: 'Running', duration: 30, km: 6, late: true },
-    { id: 'c', ts: T0 + 30, sport: 'Running', duration: 30, km: 6, backdated: true },
+    live({ id: 'a', ts: T0 + 10, sport: 'Running', duration: 30, km: 5 }, 2),
+    live({ id: 'b', ts: T0 + 20, sport: 'Running', duration: 30, km: 6, late: true }, 1),
+    live({ id: 'c', ts: T0 + 30, sport: 'Running', duration: 30, km: 6, backdated: true }, 0),
   ];
   assert.deepEqual(R.progress(run, { sports }, T0, T0 + day), { value: 5, reachedAt: null });
   const legs = R.cleanSpec({ kind: 'routine', routine: { name: 'Leg Day', exercises: ['Squat'], times: 1 } }).spec;
@@ -102,4 +105,22 @@ test('a warm-up set counts half its reps toward a race; drop and failure sets co
   ];
   // 7.5 (rounded down with the rest) + 20 + 10 + 8
   assert.equal(R.progress(reps, { history }, T0, T0 + day).value, 45);
+});
+
+test('sports rules from 4 Nov 2026: a race ignores what the app refuses', () => {
+  const run = R.cleanSpec({ kind: 'target', target: { key: 'run', amount: 50 } }).spec;
+  const T = Date.UTC(2026, 10, 5, 20), M = 60000;
+  const s = (id, ts, min, km, extra = {}) => ({ id, sport: 'Running', ts, duration: min, km, startedAt: ts - min * M, ...extra });
+  const sports = [
+    s('ok', T - 10 * 3600e3, 60, 10, { timed: true }),
+    s('long', T - 8 * 3600e3, 301, 40, { timed: true }),                 // over 5 h: refused
+    s('noProof', T - 4 * 3600e3, 100, 15),                               // over 90 min, no photo or timer
+    s('overlap', T - 10 * 3600e3 + 20 * M, 60, 10, { timed: true }),     // inside "ok"
+    s('fast', T, 30, 5, { startedAt: T - 10 * M, timed: true }),         // 30 minutes ending 20 after it was logged
+    { id: 'nostart', sport: 'Running', ts: T - 3600e3, duration: 30, km: 5, timed: true },
+  ];
+  const kept = require('../src/lib/plausibility').raceSportsKept(sports, []).map((x) => x.id);
+  assert.ok(kept.includes('ok'));
+  for (const id of ['long', 'noProof', 'overlap', 'fast', 'nostart']) assert.ok(!kept.includes(id), id);
+  assert.equal(R.progress(run, { sports }, T - day, T + day, T + day).value, kept.reduce((a, id) => a + sports.find((x) => x.id === id).km, 0));
 });
