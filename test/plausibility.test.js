@@ -27,6 +27,20 @@ test('race: impossible reps, sets, set length and pace are ignored; unusual ones
   assert.equal(P.raceSportBlocked({ sport: 'Football', duration: 361 }), true);
 });
 
+test('race: warm-up sets are left out of the set count and the pace, but their reps are checked', () => {
+  const warm = (n, r = 10) => sets(n, r, { type: 'warmup' });
+  // 150 warm-ups and 5 work sets: 5 sets, not an impossible 155
+  assert.equal(P.raceWorkoutBlocked({ exercises: [{ name: 'Push-up', sets: [...warm(150), ...sets(5, 10)] }] }), false);
+  assert.equal(P.raceWorkoutBlocked({ exercises: [{ name: 'Push-up', sets: sets(155, 10) }] }), true);
+  assert.deepEqual(P.minWorkoutSec([{ name: 'Push-up', sets: [...warm(10), ...sets(3, 10)] }]), P.minWorkoutSec([{ name: 'Push-up', sets: sets(3, 10) }]));
+  // 10 warm-ups and 2 sets in 3 minutes is fine; 12 counted sets would be impossible
+  assert.equal(P.paceLevel([{ name: 'Push-up', sets: [...warm(10), ...sets(2, 10)] }], 180), 'ok');
+  assert.equal(P.paceLevel([{ name: 'Push-up', sets: sets(12, 10) }], 180), 'block');
+  // an impossible warm-up is still impossible; drop and failure sets count as sets
+  assert.equal(P.raceWorkoutBlocked({ exercises: [{ name: 'Push-up', sets: [...warm(1, 301), ...sets(1, 10)] }] }), true);
+  assert.equal(P.raceWorkoutBlocked({ exercises: [{ name: 'Push-up', sets: sets(151, 10, { type: 'drop' }) }] }), true);
+});
+
 test('race progress skips impossible logs and logs in the future', () => {
   const spec = R.cleanSpec({ kind: 'target', target: { key: 'pushups', amount: 100 } }).spec;
   const H = (ts, exercises, extra = {}) => ({ id: String(ts), ts, name: 'W', exercises, ...extra });

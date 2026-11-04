@@ -8,6 +8,8 @@
 // faster than the time allows, a session longer than 6 h, a distance faster
 // than anyone goes, a log in the future. Weights aren't judged here: the
 // server doesn't know the account's units or body weight.
+// A set marked as a warm-up (type: 'warmup', the app's lib/setTypes.js) isn't
+// in the set count or the pace, as in the app; its reps are still checked.
 
 const LIMITS = {
   repsCheck: 100,
@@ -56,6 +58,9 @@ const KM_CHECK_SPEED = { Running: 20, Cycling: 45, Swimming: 5, Walking: 7.5, Hi
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const doneSets = (ex) => (Array.isArray(ex && ex.sets) ? ex.sets.filter((s) => s && typeof s === 'object' && s.done !== false) : []);
+const isWarmup = (s) => !!s && s.type === 'warmup';
+/** the done sets that are training: every one but the warm-ups */
+const workDone = (ex) => doneSets(ex).filter((s) => !isWarmup(s));
 
 const HOLD_WORDS = /\b(plank|hold|hang|wall sit|l-sit|carry|carries|hollow)\b/i;
 const CARDIO_WORDS = /\b(run|running|jog|bike|cycling|cycle|row|rowing|rower|treadmill|elliptical|walk|walking|swim|skipping|jump rope|stair)\b/i;
@@ -70,7 +75,7 @@ function exType(ex) {
 function minWorkoutSec(exercises = [], { restSec } = {}) {
   let work = 0, sets = 0, used = 0;
   for (const ex of exercises || []) {
-    const ds = doneSets(ex);
+    const ds = workDone(ex);
     if (!ds.length) continue;
     used += 1;
     const type = exType(ex);
@@ -102,7 +107,7 @@ function raceWorkoutBlocked(h) {
   for (const ex of exercises) {
     const type = exType(ex);
     for (const s of doneSets(ex)) {
-      sets += 1;
+      if (!isWarmup(s)) sets += 1;
       const r = Math.max(0, num(s.r));
       if (type === 'hold' ? r > L.holdSecBlock : type === 'cardio' ? r > L.cardioMinBlock : r > L.repsBlock) return true;
     }

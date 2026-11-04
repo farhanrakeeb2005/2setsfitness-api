@@ -116,6 +116,12 @@ test('plausibility: the server\'s limits, speeds and race verdicts are the app\'
         workouts.push({ ts: 1, durationSec: dur, exercises: [{ name, sets: sets(n, r, name === 'Bench press' ? 400 : 0) }] });
       }
     }
+    // warm-up sets (type 'warmup'): not in the set count or the pace, reps still checked
+    const warm = (n, r) => Array.from({ length: n }, () => ({ w: 20, r, done: true, type: 'warmup' }));
+    for (const n of [0, 5, 20, 100, 160]) for (const r of [5, 301]) for (const dur of [undefined, 120, 600, 3600]) {
+      workouts.push({ ts: 1, durationSec: dur, exercises: [{ name: 'Bench press', sets: [...warm(n, r), ...sets(4, 5, 60)] }] });
+      workouts.push({ ts: 1, durationSec: dur, exercises: [{ name: 'Squat', sets: [...warm(n, 5), { w: 100, r: 5, done: true, type: 'drop' }, { w: 90, r: 8, done: true, type: 'failure' }] }] });
+    }
     for (const h of workouts) {
       assert.equal(api.raceWorkoutBlocked(h), app.raceWorkoutBlocked(h), JSON.stringify({ ...h, exercises: h.exercises.map((e) => [e.name, e.sets.length, e.sets[0].r]) }));
       assert.equal(api.paceLevel(h.exercises, h.durationSec), app.checkPace(h.exercises, h.durationSec).level);
