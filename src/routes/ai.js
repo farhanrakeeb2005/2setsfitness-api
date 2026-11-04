@@ -24,6 +24,7 @@ function parseJSON(text) {
 const { langDirective, langName, COACH_STYLE, splitCoachNote, clean, mealNoteDirective, foodTextPrompt, workoutTextPrompt } = require('../lib/aiText');
 const { aiQuota, optionalAuth, adviceEndpoint } = require('../lib/aiQuota');
 const { containerVolumeHandler } = require('../lib/containerVolume');
+const { notesImportPrompt, cleanNotesReply, cleanNote } = require('../lib/notesImport');
 
 // per-user daily caps on every AI call (src/lib/aiQuota.js), after the token check
 const quota = (endpoint) => aiQuota(pool, endpoint);
@@ -330,6 +331,29 @@ router.post('/workout-text', auth, quota('workout-text'), async (req, res) => {
   } catch (err) {
     console.error('Workout from text failed:', err.message);
     res.status(500).json({ error: 'Could not read that workout' });
+  }
+});
+
+// ─── POST /ai/notes-import ───────────────────────────────────────────────────
+// Body: { text: a training log from a notes app (at most 8000 characters; the
+//   app sends a longer one in parts), today: "2026-11-04", units: "kg"|"lb",
+//   locale: "en-GB" }
+// -> { workouts: [{ date, title, exercises: [{ name, sets: [{ w, r }] }] }],
+//      routines: [{ name, days, exercises: [{ name, sets, reps }] }], unclear }
+// (src/lib/notesImport.js). The app shows it as a preview first and saves the
+// workouts as imported: no points, streak or challenges.
+router.post('/notes-import', auth, quota('notes-import'), async (req, res) => {
+  const text = cleanNote(req.body?.text);
+  if (!text) return res.status(400).json({ error: 'No text given' });
+  const today = DAY.test(String(req.body?.today || '')) ? req.body.today : new Date().toISOString().slice(0, 10);
+  const units = req.body?.units === 'lb' || req.body?.units === 'lbs' ? 'lb' : 'kg';
+  const locale = String(req.body?.locale || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 20);
+  try {
+    const raw = await ask(notesImportPrompt(text, { today, units, locale }), 6000);
+    res.json(cleanNotesReply(parseJSON(raw), { today }));
+  } catch (err) {
+    console.error('Notes import failed:', err.message);
+    res.status(500).json({ error: 'Could not read that note' });
   }
 });
 

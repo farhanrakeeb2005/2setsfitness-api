@@ -37,7 +37,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // 'advice': rows from before chat and meal takes were told apart
 const CHAT_ENDPOINTS = ['chat', 'advice'];
-const LOGGING_ENDPOINTS = ['meal-scan', 'food-text', 'workout-text', 'container-volume'];
+// (notes-import: a training log from a notes app read into workouts, Settings ->
+// Import from notes; a long note is sent in a few parts, each one counted)
+const LOGGING_ENDPOINTS = ['meal-scan', 'food-text', 'workout-text', 'container-volume', 'notes-import'];
 
 const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : d);
 
