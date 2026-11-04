@@ -21,8 +21,25 @@
 // sessions tracked live count. Reps are taken on trust, with caps
 // (a set counts for at most SET_REPS, a day for at most DAY_REPS): the only
 // person you cheat is yourself.
+//
+// Against spare accounts and typed logs (4 Nov 2026): a stake needs both
+// accounts a week old with 3 logs tracked live in the last 2 weeks
+// (stakeReady); a winner takes at most WEEKLY_FROM_ONE a week from one player
+// and WEEKLY_WON_MAX from everyone (transfer); and from TIMED_RACE_FROM only
+// workouts the app timed count toward a target or routine race, their reps
+// held to what their minutes allow (raceRepCap).
 
-const { raceWorkoutBlocked, raceSportsKept, inFuture, isLateLog } = require('./plausibility');
+const { raceWorkoutBlocked, raceSportsKept, inFuture, isLateLog, LIMITS } = require('./plausibility');
+
+// From TIMED_RACE_FROM (4 Nov 2026) a workout counts toward a target race
+// only when the app timed it (startedAt and durationSec, saved by a live
+// session), and its reps for at most raceRepCap of its time: the fastest
+// pace the app's plausibility rules let through (LIMITS.secPerRep at
+// LIMITS.paceBlock, about 57 a minute).
+const TIMED_RACE_FROM = Date.UTC(2026, 10, 4);
+/** the most reps a workout of durationSec can count toward a race */
+const raceRepCap = (durationSec) => Math.floor(Math.max(0, Number(durationSec) || 0) / (LIMITS.secPerRep * LIMITS.paceBlock));
+const timedOk = (h) => !(Number(h.ts) >= TIMED_RACE_FROM) || (Number(h.startedAt) > 0 && Number(h.durationSec) > 0);
 
 const KINDS = ['points', 'target', 'routine'];
 const DAYS = [1, 3, 7, 14];
@@ -34,11 +51,17 @@ const DAY_KM = { run: 100, cycle: 400, swim: 20 };
 // a winner takes at most this much a week off the same player (two accounts
 // of one person can't pass points between them)
 const WEEKLY_FROM_ONE = 100;
-// both players' accounts this old to play for points
-const STAKE_MIN_AGE_DAYS = 3;   // (no longer checked: see STAKE_MIN_LOGS)
-// points can go on a challenge once both players have logged this many
-// workouts or sports (real use, not just an old account)
+// and at most this much a week in all, whoever from (many spare accounts
+// can't feed one either)
+const WEEKLY_WON_MAX = 150;
+// Points can go on a challenge once both players' accounts are
+// STAKE_MIN_AGE_DAYS old and each has STAKE_MIN_LOGS workouts or sports
+// tracked live (not imported, not "Forgot to log") in the last
+// STAKE_LIVE_DAYS days: real use now, not an old account or a pile of
+// imports (stakeReady)
+const STAKE_MIN_AGE_DAYS = 7;
 const STAKE_MIN_LOGS = 3;
+const STAKE_LIVE_DAYS = 14;
 // a challenge request not accepted (or declined) within this many hours of
 // being sent expires: it can't be accepted any more, and the sender is told.
 // Nothing is held while one waits (a stake only moves when a race ends), so
@@ -124,6 +147,8 @@ function progress(spec, { history = [], sports = [] }, start, end, now = Infinit
   const inside = (x) => Number.isFinite(x?.ts) && x.ts >= start && x.ts <= end && !inFuture(x.ts, now);
   // (nor a workout imported from another app or a backup file: imported: true)
   history = (history || []).filter((h) => h && !isLateLog(h) && h.imported !== true && !raceWorkoutBlocked(h));
+  // (an untimed workout from TIMED_RACE_FROM: still an overlap for a session, never reps)
+  const timedHistory = history.filter(timedOk);
   // (a session against the player's other live sessions and workouts: overlaps, the day's 3rd)
   sports = raceSportsKept((sports || []).filter((s) => s && !isLateLog(s)), history);
   const events = [];   // [ts, amount]
@@ -131,7 +156,7 @@ function progress(spec, { history = [], sports = [] }, start, end, now = Infinit
     const t = TARGETS[spec.target.key];
     if (t.unit === 'reps') {
       const perDay = {};
-      for (const h of history.filter(inside).sort((a, b) => a.ts - b.ts)) {
+      for (const h of timedHistory.filter(inside).sort((a, b) => a.ts - b.ts)) {
         let n = 0;
         for (const ex of Array.isArray(h.exercises) ? h.exercises : []) {
           if (!t.match.test(String(ex?.name || ''))) continue;
@@ -141,6 +166,7 @@ function progress(spec, { history = [], sports = [] }, start, end, now = Infinit
           }
         }
         n = Math.floor(n);
+        if (Number(h.ts) >= TIMED_RACE_FROM) n = Math.min(n, raceRepCap(h.durationSec));
         const d = dayOf(h.ts);
         const room = DAY_REPS - (perDay[d] || 0);
         n = Math.min(n, room);
@@ -159,7 +185,7 @@ function progress(spec, { history = [], sports = [] }, start, end, now = Infinit
   } else if (spec.kind === 'routine') {
     const want = spec.routine.exercises.map((e) => e.toLowerCase());
     const name = spec.routine.name.toLowerCase();
-    for (const h of history.filter(inside).sort((a, b) => a.ts - b.ts)) {
+    for (const h of timedHistory.filter(inside).sort((a, b) => a.ts - b.ts)) {
       if (String(h.name || '').trim().toLowerCase() !== name) continue;
       const doneEx = new Set((Array.isArray(h.exercises) ? h.exercises : [])
         .filter((ex) => (Array.isArray(ex.sets) ? ex.sets : []).some(done))
@@ -196,13 +222,31 @@ function decide(spec, from, to, ended) {
   return from.value > to.value ? 'from' : to.value > from.value ? 'to' : 'draw';
 }
 
-/** the points that move: the stake, no more than the loser has, nor past the weekly cap */
-function transfer(stake, loserPoints, wonFromThemThisWeek) {
-  return Math.max(0, Math.min(stake, Math.max(0, loserPoints), WEEKLY_FROM_ONE - Math.max(0, wonFromThemThisWeek)));
+/** the points that move: the stake, no more than the loser has, nor past either weekly cap
+ * (from this loser; from everyone: wonThisWeek, what the winner's races moved to them in 7 days) */
+function transfer(stake, loserPoints, wonFromThemThisWeek, wonThisWeek = 0) {
+  return Math.max(0, Math.min(stake, Math.max(0, loserPoints), WEEKLY_FROM_ONE - Math.max(0, wonFromThemThisWeek),
+    WEEKLY_WON_MAX - Math.max(0, Number(wonThisWeek) || 0)));
+}
+
+/**
+ * Can this player put points on a challenge? createdAt: the account's;
+ * logs: { history, sports } (the backup: any since STAKE_LIVE_DAYS ago).
+ * The account STAKE_MIN_AGE_DAYS old and STAKE_MIN_LOGS logs tracked live in
+ * the last STAKE_LIVE_DAYS days (not late, not imported, not in the future).
+ */
+function stakeReady(createdAt, { history = [], sports = [] } = {}, now = Date.now()) {
+  const made = createdAt == null ? NaN : new Date(createdAt).getTime();
+  if (!Number.isFinite(made) || now - made < STAKE_MIN_AGE_DAYS * 864e5) return false;
+  const from = now - STAKE_LIVE_DAYS * 864e5;
+  const live = (e) => e && typeof e === 'object' && Number.isFinite(e.ts) && e.ts >= from && !inFuture(e.ts, now)
+    && !isLateLog(e) && e.imported !== true;
+  return (history || []).filter(live).length + (sports || []).filter(live).length >= STAKE_MIN_LOGS;
 }
 
 module.exports = {
-  KINDS, DAYS, STAKES, TARGETS, FORFEIT_MAX, SET_REPS, DAY_REPS, WEEKLY_FROM_ONE, STAKE_MIN_AGE_DAYS, STAKE_MIN_LOGS,
+  KINDS, DAYS, STAKES, TARGETS, FORFEIT_MAX, SET_REPS, DAY_REPS, WEEKLY_FROM_ONE, WEEKLY_WON_MAX, STAKE_MIN_AGE_DAYS, STAKE_MIN_LOGS,
+  STAKE_LIVE_DAYS, TIMED_RACE_FROM, stakeReady, raceRepCap,
   CHALLENGE_REQUEST_TTL_H, EXPIRED_SHOWN_H, requestExpiresAt, requestExpired,
   cleanSpec, progress, decide, transfer, goalOf,
 };

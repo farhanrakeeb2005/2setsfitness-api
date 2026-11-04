@@ -39,14 +39,14 @@ router.put('/', auth, async (req, res) => {
   const sets = [], vals = [];
   if (!lookOnly) {
     const { rows } = await pool.query(
-      `SELECT u.created_at, p.points, p.points_day, p.points_day_max
+      `SELECT u.created_at, p.points, p.points_day, p.points_day_max, p.points_peak
        FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1`, [req.user.id]);
     const r = rows[0] || {};
-    const got = reportedPoints(pts, r.created_at, { points: r.points, day: r.points_day, dayMax: r.points_day_max });
+    const got = reportedPoints(pts, r.created_at, { points: r.points, day: r.points_day, dayMax: r.points_day_max, peak: r.points_peak });
     if (got.clamped) console.warn(`points: ${req.user.id} claimed ${pts}, stored ${got.stored} (had ${r.points ?? 0})`);
     stored = got.stored;
-    vals.push(stored, got.day, got.dayMax);
-    sets.push('points = $1', 'points_day = $2', 'points_day_max = $3');
+    vals.push(stored, got.day, got.dayMax, got.peak);
+    sets.push('points = $1', 'points_day = $2', 'points_day_max = $3', 'points_peak = $4');
   }
   if ('avatar_emoji' in b) {
     const e = b.avatar_emoji;

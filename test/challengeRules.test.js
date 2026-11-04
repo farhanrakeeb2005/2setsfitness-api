@@ -2,7 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const R = require('../src/lib/challengeRules');
 
-const H = (ts, name, exercises) => ({ id: String(ts), ts, name, exercises });
+// a workout as a live session saves one: timed (startedAt, durationSec), the half hour before it was logged
+const H = (ts, name, exercises) => ({ id: String(ts), ts, name, exercises, startedAt: ts - 1800e3, durationSec: 1800 });
 const set = (r, done = true) => ({ w: 0, r, done });
 const day = 864e5, T0 = 1_800_000_000_000;
 // a session as the app saves one now: its minutes and when it began (the

@@ -60,38 +60,54 @@ function cappedPoints(points, createdAt, now = Date.now()) {
 // rise by more than each UTC day's allowance since the last day it was
 // reported: the first report of a day fixes that day's ceiling (the total
 // stored before it, plus the allowance of every day since), and every report
-// that day is held to it. An account's first report ever has only the age cap.
+// that day is held to it. Days not reported bank up for at most
+// CATCH_UP_DAYS (today among them): 30 quiet days don't allow 30 days' worth
+// at once. An account with no day stored (its first report, or one from
+// before the day was kept) counts as having reported yesterday: what's
+// stored plus today's allowance, never the age cap's whole allowance at once.
 // state: { points (stored now), day ('YYYY-MM-DD' of the last report, or
 // null), dayMax (that day's ceiling, or null) }. Returns { limit (the most
 // the total may be now), day, dayMax (to store) }.
+const CATCH_UP_DAYS = 3;
 const dayStr = (ms) => new Date(ms).toISOString().slice(0, 10);
 function dayLimit({ points = 0, day = null, dayMax = null } = {}, now = Date.now()) {
   const today = dayStr(now);
+  const todayStart = Date.parse(`${today}T00:00:00Z`);
   const max = Number(dayMax);
   if (day === today && dayMax != null && Number.isFinite(max)) return { limit: max, day: today, dayMax: max };
-  const last = typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day) ? Date.parse(`${day}T00:00:00Z`) : NaN;
-  if (!Number.isFinite(last)) return { limit: Infinity, day: today, dayMax: null };
-  const days = Math.max(1, Math.round((Date.parse(`${today}T00:00:00Z`) - last) / DAY_MS));
-  // the days after the last report's, up to today, each with its allowance
-  const limit = Math.max(0, Math.round(Number(points) || 0)) + allowance(last + DAY_MS, days);
+  const last0 = typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day) ? Date.parse(`${day}T00:00:00Z`) : NaN;
+  // (no day known: as if reported yesterday)
+  const last = Number.isFinite(last0) ? last0 : todayStart - DAY_MS;
+  const days = Math.min(CATCH_UP_DAYS, Math.max(1, Math.round((todayStart - last) / DAY_MS)));
+  // the last `days` days up to today, each with its allowance
+  const limit = Math.max(0, Math.round(Number(points) || 0)) + allowance(todayStart - (days - 1) * DAY_MS, days);
   return { limit, day: today, dayMax: limit };
 }
 
 /**
  * The total to store for a claim, held to the account's age (cappedPoints)
- * and to the day's rise (dayLimit): { stored, day, dayMax, clamped }.
- * A first report ever sets the day's ceiling at what's stored plus today's
- * allowance. A claim below what's stored is stored as it is.
+ * and to the day's rise (dayLimit): { stored, day, dayMax, peak, clamped }.
+ * A claim below what's stored is stored as it is, and the day's ceiling
+ * comes down to it plus one day's allowance: reporting 0 and climbing back
+ * can't rise further today than earning would. peak: the highest total
+ * ever stored (state.peak, else what was stored), which a points race
+ * starts from (routes/challenges.js), so a dip before a race isn't a gain.
  */
 function reportedPoints(claim, createdAt, state = {}, now = Date.now()) {
   const aged = cappedPoints(claim, createdAt, now);
   const lim = dayLimit(state, now);
   const stored = Math.min(aged, lim.limit);
-  const dayMax = lim.dayMax == null ? stored + capOfDay(Date.parse(`${lim.day}T00:00:00Z`)) : lim.dayMax;
-  return { stored, day: lim.day, dayMax, clamped: Math.max(0, Math.round(Number(claim) || 0)) > stored };
+  const before = Math.max(0, Math.round(Number(state.points) || 0));
+  let dayMax = lim.dayMax;
+  if (stored < before) dayMax = Math.min(dayMax, stored + capOfDay(Date.parse(`${lim.day}T00:00:00Z`)));
+  const peak = Math.max(stored, before, Math.round(Number(state.peak) || 0));
+  return { stored, day: lim.day, dayMax, peak, clamped: Math.max(0, Math.round(Number(claim) || 0)) > stored };
 }
 
+/** the points a race starts from: the total now, or its peak when it dipped below it */
+const raceStartPoints = (points, peak) => Math.max(Math.round(Number(points) || 0), Math.round(Number(peak) || 0));
+
 module.exports = {
-  DAILY_POINTS_CAP, OLD_DAILY_POINTS_CAP, MID_DAILY_POINTS_CAP, CAP_CHANGED_FROM, CAP_LOWERED_FROM, CAP_STEPS,
-  capOfDay, pointsCap, cappedPoints, dayLimit, reportedPoints,
+  DAILY_POINTS_CAP, OLD_DAILY_POINTS_CAP, MID_DAILY_POINTS_CAP, CAP_CHANGED_FROM, CAP_LOWERED_FROM, CAP_STEPS, CATCH_UP_DAYS,
+  capOfDay, pointsCap, cappedPoints, dayLimit, reportedPoints, raceStartPoints,
 };

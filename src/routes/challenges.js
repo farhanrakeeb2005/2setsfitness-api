@@ -49,6 +49,11 @@ const nameOf = async (userId) => {
   return r ? shownName(r.name, r.public_id) : '';
 };
 
+// A points race starts from the player's total, or from the highest total
+// they ever had stored when it's lower now (lib/pointsCap.js reportedPoints
+// keeps points_peak): reporting less just before a race and climbing back to
+// it isn't a gain (lib/pointsCap.js raceStartPoints, in SQL)
+const RACE_START = 'GREATEST(COALESCE(points, 0), COALESCE(points_peak, 0))';
 const MAX_OPEN_SENT = 5;            // pending or running challenges one player has sent
 const CHALLENGE_ID = /^[0-9a-f]{32}$/;   // (the same shape as a public id, lib/sql.js)
 const DAY_MS = 864e5;
@@ -57,11 +62,18 @@ const DAY_MS = 864e5;
 const effectivePoints = async (db, userId) =>
   Number((await db.query(`SELECT ${EFFECTIVE} AS p FROM profiles WHERE user_id = $1`, [userId])).rows[0]?.p || 0);
 
-// a player who has logged enough workouts or sports to play for points
-const activeEnough = async (userId) => {
-  const l = await logsOf(userId);
-  return l.history.length + l.sports.length >= R.STAKE_MIN_LOGS;
+// a player who can play for points (lib/challengeRules.js stakeReady): an
+// account a week old with 3 workouts or sports tracked live in the last 2 weeks
+const stakeReady = async (userId, createdAt) => {
+  // (too new: no need to read the logs)
+  if (!(Date.now() - new Date(createdAt).getTime() >= R.STAKE_MIN_AGE_DAYS * DAY_MS)) return false;
+  return R.stakeReady(createdAt, await logsOf(userId, Date.now() - R.STAKE_LIVE_DAYS * DAY_MS));
 };
+const createdAtOf = async (userId) =>
+  (await pool.query('SELECT created_at FROM users WHERE id = $1', [userId])).rows[0]?.created_at ?? null;
+const STAKE_NOT_READY = { error: 'new', message: `Points can be put on a challenge once both accounts are ${R.STAKE_MIN_AGE_DAYS} days old and both players have tracked ${R.STAKE_MIN_LOGS} workouts or sports live in the last ${R.STAKE_LIVE_DAYS} days` };
+// Postgres: a unique index refused the row (challenges_open_pair: one open challenge a pair)
+const isUniqueViolation = (e) => e && e.code === '23505';
 
 const specOf = (c) => ({ kind: c.kind || 'points', days: c.days || 7, stake: c.stake || 0, target: c.target, routine: c.routine });
 
@@ -116,12 +128,15 @@ async function finish(c, fromValue, toValue, winner) {
     let moved = 0;
     if (winner !== 'draw' && c.stake > 0) {
       const [w, l] = winner === 'from' ? [c.from_user, c.to_user] : [c.to_user, c.from_user];
+      // what the winner's races moved to them in the last 7 days: from this
+      // loser (WEEKLY_FROM_ONE) and from everyone (WEEKLY_WON_MAX)
       const { rows: [won] } = await client.query(
-        `SELECT COALESCE(SUM(moved), 0) AS n FROM challenges
+        `SELECT COALESCE(SUM(moved) FILTER (WHERE from_user = $2 OR to_user = $2), 0) AS n, COALESCE(SUM(moved), 0) AS total
+         FROM challenges
          WHERE status = 'done' AND ends_at > now() - interval '7 days'
-           AND ((winner = 'from' AND from_user = $1 AND to_user = $2) OR (winner = 'to' AND to_user = $1 AND from_user = $2))`,
+           AND ((winner = 'from' AND from_user = $1) OR (winner = 'to' AND to_user = $1))`,
         [w, l]);
-      moved = R.transfer(c.stake, await effectivePoints(client, l), Number(won.n));
+      moved = R.transfer(c.stake, await effectivePoints(client, l), Number(won.n), Number(won.total));
     }
     const { rowCount } = await client.query(
       `UPDATE challenges SET status = 'done', winner = $2, moved = $3, from_value = $4, to_value = $5,
@@ -249,10 +264,9 @@ router.post('/', auth, async (req, res) => {
     return res.status(403).json({ error: 'notallowed', message: 'You can challenge friends, and players in your rank' });
   }
   if (spec.stake > 0) {
-    const [mine, theirs] = await Promise.all([activeEnough(req.user.id), activeEnough(target.user_id)]);
-    if (!mine || !theirs) {
-      return res.status(403).json({ error: 'new', message: `Points can be put on a challenge once both players have logged ${R.STAKE_MIN_LOGS} workouts or sports` });
-    }
+    const [mine, theirs] = await Promise.all([
+      createdAtOf(req.user.id).then((at) => stakeReady(req.user.id, at)), stakeReady(target.user_id, target.created_at)]);
+    if (!mine || !theirs) return res.status(403).json(STAKE_NOT_READY);
     if (await effectivePoints(pool, req.user.id) < spec.stake) {
       return res.status(403).json({ error: 'points', message: 'You don\'t have that many points to put on it' });
     }
@@ -267,11 +281,19 @@ router.post('/', auth, async (req, res) => {
   );
   if (Number(open.pair) > 0) return res.status(409).json({ error: 'already', message: 'You already have a challenge with this player' });
   if (Number(open.sent) >= MAX_OPEN_SENT) return res.status(429).json({ error: 'limit', message: 'Too many open challenges' });
-  const { rows: [c] } = await pool.query(
-    `INSERT INTO challenges (from_user, to_user, kind, days, stake, forfeit, target, routine)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-    [req.user.id, target.user_id, spec.kind, spec.days, spec.stake, spec.forfeit,
-      spec.target && JSON.stringify(spec.target), spec.routine && JSON.stringify(spec.routine)]);
+  // (two sent at once both pass the check above: the unique index
+  // challenges_open_pair, server.js, lets only one in)
+  let c;
+  try {
+    ({ rows: [c] } = await pool.query(
+      `INSERT INTO challenges (from_user, to_user, kind, days, stake, forfeit, target, routine)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [req.user.id, target.user_id, spec.kind, spec.days, spec.stake, spec.forfeit,
+        spec.target && JSON.stringify(spec.target), spec.routine && JSON.stringify(spec.routine)]));
+  } catch (e) {
+    if (isUniqueViolation(e)) return res.status(409).json({ error: 'already', message: 'You already have a challenge with this player' });
+    throw e;
+  }
   res.status(201).json({ id: c.id, status: 'pending' });
   // a notification to accept it (after the reply: it never holds the request up)
   notifyUser(target.user_id, 'challenged', { name: await nameOf(req.user.id), data: { challengeId: c.id } });
@@ -357,9 +379,7 @@ router.post('/:id/respond', auth, async (req, res) => {
   }
   if (accept) {
     if (c.stake > 0) {
-      if (!(await activeEnough(req.user.id))) {
-        return res.status(403).json({ error: 'new', message: `Points can be put on a challenge once both players have logged ${R.STAKE_MIN_LOGS} workouts or sports` });
-      }
+      if (!(await stakeReady(req.user.id, await createdAtOf(req.user.id)))) return res.status(403).json(STAKE_NOT_READY);
       if (await effectivePoints(pool, req.user.id) < c.stake) {
         return res.status(403).json({ error: 'points', message: 'You don\'t have that many points to put on it' });
       }
@@ -368,8 +388,8 @@ router.post('/:id/respond', auth, async (req, res) => {
   const { rowCount } = accept
     ? await pool.query(
       `UPDATE challenges c SET status = 'accepted', starts_at = now(), ends_at = now() + make_interval(days => COALESCE(c.days, 7)),
-         from_start = COALESCE((SELECT points FROM profiles WHERE user_id = c.from_user), 0),
-         to_start   = COALESCE((SELECT points FROM profiles WHERE user_id = c.to_user), 0)
+         from_start = COALESCE((SELECT ${RACE_START} FROM profiles WHERE user_id = c.from_user), 0),
+         to_start   = COALESCE((SELECT ${RACE_START} FROM profiles WHERE user_id = c.to_user), 0)
        WHERE c.id = $1 AND c.to_user = $2 AND c.status = 'pending' AND c.created_at > now() - make_interval(hours => $3)`,
       [id, req.user.id, R.CHALLENGE_REQUEST_TTL_H])
     : await pool.query(

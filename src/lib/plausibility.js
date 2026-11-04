@@ -5,7 +5,8 @@
 // or a script could still back up anything, so challenge races
 // (challengeRules.js progress) ignore every log the app would have refused:
 // more reps in a set than anyone does, more sets than a workout holds, sets
-// faster than the time allows, a sports session longer than its sport allows
+// faster than the time allows (cardio minutes past the workout's time, even
+// in one set), a sports session longer than its sport allows
 // (3 h, 5 h for endurance sports, less at Hard), a distance faster than
 // anyone goes, a log in the future; and from SPORT_RULES_FROM a session with
 // no minutes or start, one over 90 minutes without proof (a photo or the
@@ -35,6 +36,7 @@ const LIMITS = {
   paceCheck: 0.7,
   paceBlock: 0.35,
   paceMinSets: 2,
+  cardioSlackSec: 60,
   secPerSetBlock: 20,
   burstSets: 3,
   burstMs: 20000,
@@ -102,10 +104,19 @@ function minWorkoutSec(exercises = [], { restSec } = {}) {
   return { sec: Math.round(work + rest + L.changeoverSec * Math.max(0, used - 1)), sets };
 }
 
-/** 'ok' | 'check' | 'block' for the time a workout took against its sets */
+/** the minutes of a workout's done cardio sets (warm-ups aside) */
+function cardioMinutes(exercises = []) {
+  let m = 0;
+  for (const ex of exercises || []) if (exType(ex) === 'cardio') for (const s of workDone(ex)) m += Math.max(0, num(s.r));
+  return m;
+}
+
+/** 'ok' | 'check' | 'block' for the time a workout took against its sets
+ * (cardio minutes past the time it took, even in one set, are refused) */
 function paceLevel(exercises, durationSec, opts = {}) {
   const dur = num(durationSec);
   if (!(dur > 0)) return 'ok';
+  if (cardioMinutes(exercises) * 60 > dur + L.cardioSlackSec) return 'block';
   const { sec, sets } = minWorkoutSec(exercises, opts);
   if (sets < L.paceMinSets || !(sec > 0)) return 'ok';
   if (dur < sec * L.paceBlock || (sets >= 10 && dur < sets * L.secPerSetBlock)) return 'block';
@@ -197,6 +208,6 @@ const isLateLog = (e) => !!e && typeof e === 'object' && (e.late === true || e.b
 const inFuture = (ts, now = Date.now()) => Number.isFinite(ts) && ts > now + L.futureSlackMs;
 
 module.exports = {
-  LIMITS, KM_TOP_SPEED, KM_CHECK_SPEED, exType, minWorkoutSec, paceLevel, raceWorkoutBlocked, checkKm, raceSportBlocked, inFuture, isLateLog,
+  LIMITS, KM_TOP_SPEED, KM_CHECK_SPEED, exType, minWorkoutSec, cardioMinutes, paceLevel, raceWorkoutBlocked, checkKm, raceSportBlocked, inFuture, isLateLog,
   SPORT_RULES_FROM, ENDURANCE_SPORTS, sportLimits, hasProof, raceSportsKept,
 };

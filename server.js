@@ -24,6 +24,10 @@ const MIGRATIONS = [
   // daily cap a day since)
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS points_day TEXT`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS points_day_max INTEGER`,
+  // the highest total ever stored (lib/pointsCap.js reportedPoints): a points
+  // race starts from it, so reporting less before a race and climbing back
+  // isn't a gain (routes/challenges.js RACE_START)
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS points_peak INTEGER`,
   // update emails: on by default, one-click off from the email footer (src/routes/email.js)
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_updates BOOLEAN NOT NULL DEFAULT TRUE`,
   // Body weight tracking table
@@ -69,6 +73,12 @@ const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS challenges_from ON challenges (from_user, status)`,
   `CREATE INDEX IF NOT EXISTS challenges_to ON challenges (to_user, status)`,
+  // one open challenge (waiting or running) between two players, whichever
+  // sent it, even when both send at the same moment (routes/challenges.js
+  // answers 409 'already'). If rows from before break it, this fails, is
+  // logged, and is tried again at the next start (the route's check still holds).
+  `CREATE UNIQUE INDEX IF NOT EXISTS challenges_open_pair ON challenges (LEAST(from_user, to_user), GREATEST(from_user, to_user))
+     WHERE status IN ('pending', 'accepted')`,
   // what a challenge is (lib/challengeRules.js): its kind, days, stake and
   // forfeit, a target or routine race's goal, and how it ended
   `ALTER TABLE challenges ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'points'`,
