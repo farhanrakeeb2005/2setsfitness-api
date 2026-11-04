@@ -95,6 +95,8 @@ test('help facts: the app\'s SERVER_DAILY_CAP, STAKE_MIN_LOGS and STAKE_MAX are 
   assert.equal(exported(read('src/lib/pointValues.js'), 'DAILY_POINTS_CAP'), DAILY_POINTS_CAP);
   assert.equal(exported(src, 'STAKE_MIN_LOGS'), R.STAKE_MIN_LOGS);
   assert.equal(exported(src, 'STAKE_MAX'), Math.max(...R.STAKES));
+  // what a winner takes a week from all challenges together (the guide says it)
+  assert.equal(exported(src, 'STAKE_WEEK_MAX'), R.WEEKLY_WON_MAX);
 });
 
 test('plausibility: the server\'s limits, speeds and race verdicts are the app\'s', { skip }, async () => {
