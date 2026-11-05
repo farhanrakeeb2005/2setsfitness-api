@@ -25,9 +25,9 @@ function createFeedbackRouter({ pool, auth, mailer, limiter } = {}) {
     const v = f.value;
     try {
       await pool.query(
-        `INSERT INTO app_feedback (uid, kind, text, name, can_quote, app_version, lang)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [req.user.id, v.kind, v.text, v.name, v.canQuote, v.appVersion, v.lang]);
+        `INSERT INTO app_feedback (uid, kind, text, name, can_quote, app_version, lang, rating)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [req.user.id, v.kind, v.text, v.name, v.canQuote, v.appVersion, v.lang, v.rating]);
     } catch (e) {
       console.error('feedback: save failed', e.message);
       return res.status(500).json({ error: 'Could not send right now.' });

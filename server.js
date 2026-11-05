@@ -129,6 +129,8 @@ const MIGRATIONS = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS app_feedback_uid ON app_feedback (uid)`,
+  // the stars they gave (1-5; older rows have none)
+  `ALTER TABLE app_feedback ADD COLUMN IF NOT EXISTS rating SMALLINT CHECK (rating BETWEEN 1 AND 5)`,
   // who has blocked whom (src/routes/blocks.js: challenges and friend requests)
   `CREATE TABLE IF NOT EXISTS blocks (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -6,6 +6,10 @@ const { esc, shell } = require('./mailer');
 const KINDS = ['like', 'improve'];
 const LIMITS = { textMin: 3, text: 500, name: 40, appVersion: 20, lang: 10 };
 
+// 1-5 whole stars, or null (none sent, or anything else)
+const starsOf = (v) => (Number.isInteger(v) && v >= 1 && v <= 5 ? v : null);
+const starLine = (n) => '\u2605'.repeat(n) + '\u2606'.repeat(5 - n);
+
 const oneLine = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().replace(/\s+/g, ' ').slice(0, max);
 
 /** { ok: true, value } or { ok: false, error } */
@@ -24,7 +28,7 @@ function cleanFeedback(body = {}) {
   return {
     ok: true,
     value: {
-      kind, text, name, canQuote,
+      kind, text, name, canQuote, rating: starsOf(body.rating),
       appVersion: oneLine(body.appVersion, LIMITS.appVersion) || null,
       lang: oneLine(body.lang, LIMITS.lang) || null,
     },
@@ -32,7 +36,7 @@ function cleanFeedback(body = {}) {
 }
 
 // the team's copy, in the same frame as the app's other emails
-function feedbackEmail({ kind, text, name, canQuote, appVersion, lang }, uid) {
+function feedbackEmail({ kind, text, name, canQuote, appVersion, lang, rating }, uid) {
   const like = kind === 'like';
   const paras = text.split(/\n\s*\n/)
     .map((p) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.65;color:#2a2c35">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
@@ -45,6 +49,7 @@ function feedbackEmail({ kind, text, name, canQuote, appVersion, lang }, uid) {
 <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;color:#141416">App feedback ${like ? '&#128077;' : '&#128078;'}</h1>
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="background:#f6f6f9;border-left:4px solid #E31E24;border-radius:8px;padding:16px 18px 4px">${paras}</td></tr></table>
 <table cellpadding="0" cellspacing="0" style="margin-top:18px">
+${rating ? row('Rating', `${starLine(rating)} ${rating}/5`) : ''}
 ${like ? row('Name', name || '(none)') : ''}
 ${row('Can quote', consent)}
 ${row('User id', uid)}
@@ -53,9 +58,9 @@ ${row('Language', lang || '?')}
 </table>`,
   'Sent from the feedback prompt in the 2SetsFitness app.');
   return {
-    subject: like ? `App feedback: \u{1F44D}${canQuote ? ' (can quote)' : ''}` : 'App feedback: \u{1F44E}',
+    subject: `App feedback: ${rating ? `${starLine(rating)} ` : ''}${like ? '\u{1F44D}' : '\u{1F44E}'}${like && canQuote ? ' (can quote)' : ''}`,
     html,
   };
 }
 
-module.exports = { KINDS, LIMITS, cleanFeedback, feedbackEmail };
+module.exports = { KINDS, LIMITS, cleanFeedback, feedbackEmail, starLine };

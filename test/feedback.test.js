@@ -94,7 +94,7 @@ test('route: saves with the uid, then emails the team', async () => {
   assert.deepEqual(await r.json(), { ok: true });
   const s = saved.at(-1);
   assert.match(s.sql, /INSERT INTO app_feedback/);
-  assert.deepEqual(s.params, ['u1', 'like', 'Love the coach voice and the boss fights.', 'Sam, 24', true, '1.9.0', 'en']);
+  assert.deepEqual(s.params, ['u1', 'like', 'Love the coach voice and the boss fights.', 'Sam, 24', true, '1.9.0', 'en', null]);   // (no stars sent: null)
   await new Promise((r2) => setImmediate(r2));
   assert.equal(mailed.at(-1).to, 'team@example.com');
   assert.match(mailed.at(-1).m.subject, /can quote/);
@@ -112,4 +112,14 @@ test('route: 5 per hour per user', async () => {
   assert.equal((await post({ kind: 'improve', text: 'more please' }, 'u2')).status, 429);
   // someone else is not affected
   assert.equal((await post({ kind: 'improve', text: 'more please' }, 'u3')).status, 200);
+});
+
+test('a 1-5 star rating is kept and shown as stars; anything else is dropped', () => {
+  const v = cleanFeedback({ ...like, rating: 4 }).value;
+  assert.equal(v.rating, 4);
+  const mail = feedbackEmail(v, 'u1');
+  assert.match(mail.subject, /★★★★☆/);
+  assert.match(mail.html, /4\/5/);
+  for (const bad of [0, 6, 4.5, '5', null, undefined]) assert.equal(cleanFeedback({ ...like, rating: bad }).value.rating, null);
+  assert.doesNotMatch(feedbackEmail(cleanFeedback(like).value, 'u1').subject, /★/);
 });
