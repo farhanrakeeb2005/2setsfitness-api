@@ -24,6 +24,7 @@ function parseJSON(text) {
 const { langDirective, langName, COACH_STYLE, splitCoachNote, clean, mealNoteDirective, foodTextPrompt, workoutTextPrompt } = require('../lib/aiText');
 const { aiQuota, optionalAuth, adviceEndpoint } = require('../lib/aiQuota');
 const { containerVolumeHandler } = require('../lib/containerVolume');
+const { physiqueHandler } = require('../lib/physique');
 const { notesImportPrompt, cleanNotesReply, cleanNote } = require('../lib/notesImport');
 
 // per-user daily caps on every AI call (src/lib/aiQuota.js), after the token check
@@ -289,6 +290,19 @@ If there is no food in the photo, return {"items":[],"total":{"calories":0,"prot
 // label }. src/lib/containerVolume.js has the prompt and the label parsing.
 // A logging tool for the caps (like a meal scan), not a coach chat.
 router.post('/container-volume', auth, quota('container-volume'), containerVolumeHandler({
+  create: (r) => anthropic.messages.create(r), models, request, replyText, parseJSON, langDirective,
+}));
+
+// ─── POST /ai/physique ───────────────────────────────────────────────────────
+// Body: { imageBase64, mimeType?, lang, sex?, heightCm?, weightKg? }
+// A physique estimate from one photo (the app's "Scan your physique", also
+// before sign-in): { ok: true, bodyFatLow, bodyFatHigh, score, level,
+// strengths, focus, note } or { ok: false, reason } (no one, several people,
+// under 16, not suitable, unclear). src/lib/physique.js has the prompt and
+// the checks on the answer. The photo is never stored or logged.
+// Guests: 1 scan per install, a per-IP and an everyone cap; accounts: 3 a
+// day (src/lib/aiQuota.js).
+router.post('/physique', optionalAuth(auth), quota('physique'), physiqueHandler({
   create: (r) => anthropic.messages.create(r), models, request, replyText, parseJSON, langDirective,
 }));
 

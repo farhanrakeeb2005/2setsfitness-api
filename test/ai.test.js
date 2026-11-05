@@ -32,7 +32,8 @@ test('daily caps: all AI calls, and meal scans on their own', () => {
   const lim = limits({ AI_DAILY_LIMIT: '100', AI_SCAN_DAILY_LIMIT: '10' });
   assert.equal(lim.daily, 100);
   assert.equal(lim.scan, 10);
-  assert.deepEqual(limits({}), { daily: 150, scan: 30, chat: 10, logging: 40, take: 30, guest: 2, guestIp: 6, guestAll: 300 });
+  assert.deepEqual(limits({}), { daily: 150, scan: 30, chat: 10, logging: 40, take: 30, guest: 2, guestIp: 6, guestAll: 300,
+    physique: 3, guestPhysique: 1, guestPhysiqueIp: 3, guestPhysiqueAll: 200 });
   assert.equal(overLimit({ total: 99, scan: 9 }, lim, 'meal-scan'), null);
   assert.equal(overLimit({ total: 99, scan: 10 }, lim, 'meal-scan'), 'scan');
   assert.equal(overLimit({ total: 99, scan: 10 }, lim, 'coach'), null);

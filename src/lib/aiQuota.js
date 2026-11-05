@@ -21,12 +21,22 @@
 //                           local day (default 40)
 //   AI_SCAN_DAILY_LIMIT     of those, meal photo scans (default 30: they cost most)
 //   AI_TAKE_DAILY_LIMIT     the coach's take on a meal, per local day (default 30)
+//   AI_PHYSIQUE_DAILY_LIMIT physique scans from a photo (POST /ai/physique),
+//                           per local day (default 3)
 //   AI_DAILY_LIMIT          every AI call together, last 24 hours (default 150)
 // Guests (no sign-in; the app sends X-Install-Id, a random id made at install):
 //   AI_GUEST_CHATS          chat messages per install, ever (default 2)
 //   AI_GUEST_IP_DAILY       guest chats per IP in 24 hours (default 6: a
 //                           reinstall or a made-up id doesn't buy more)
 //   AI_GUEST_DAILY_TOTAL    guest chats from everyone in 24 hours (default 300)
+//   AI_GUEST_PHYSIQUE       physique scans per install, ever (default 1)
+//   AI_GUEST_PHYSIQUE_IP_DAILY    guest physique scans per IP in 24 hours (default 3)
+//   AI_GUEST_PHYSIQUE_DAILY_TOTAL guest physique scans from everyone in 24 hours (default 200)
+// A guest's chats and physique scans are counted apart (ai_guest_log.endpoint):
+// a scan never uses up a chat, nor a chat a scan. Every other AI tool needs an
+// account. A scan the photo couldn't be read from ('physique-retry', see
+// aiRetry below) gives the install its scan back but still counts for the IP
+// and everyone caps.
 // A signed-in user's database error lets the call through (logged): a cap is
 // not worth breaking the app over. A guest's doesn't (they can sign in).
 const crypto = require('crypto');
@@ -53,6 +63,10 @@ function limits(env = process.env) {
     guest: num(env.AI_GUEST_CHATS, 2),
     guestIp: num(env.AI_GUEST_IP_DAILY, 6),
     guestAll: num(env.AI_GUEST_DAILY_TOTAL, 300),
+    physique: num(env.AI_PHYSIQUE_DAILY_LIMIT, 3),
+    guestPhysique: num(env.AI_GUEST_PHYSIQUE, 1),
+    guestPhysiqueIp: num(env.AI_GUEST_PHYSIQUE_IP_DAILY, 3),
+    guestPhysiqueAll: num(env.AI_GUEST_PHYSIQUE_DAILY_TOTAL, 200),
   };
 }
 
@@ -60,7 +74,19 @@ function kindOf(endpoint) {
   if (CHAT_ENDPOINTS.includes(endpoint)) return 'chat';
   if (LOGGING_ENDPOINTS.includes(endpoint)) return 'logging';
   if (endpoint === 'meal-take') return 'take';
+  if (endpoint === 'physique') return 'physique';
   return 'other';
+}
+
+// a guest's own caps for each kind they may use, and the ai_guest_log rows
+// each counts: `install` the install's (ever), `window` the IP's and
+// everyone's (24 h)
+function guestCaps(kind, lim) {
+  if (kind === 'physique') {
+    return { install: lim.guestPhysique, ip: lim.guestPhysiqueIp, all: lim.guestPhysiqueAll,
+      installRows: ['physique'], windowRows: ['physique', 'physique-retry'] };
+  }
+  return { install: lim.guest, ip: lim.guestIp, all: lim.guestAll, installRows: ['chat'], windowRows: ['chat'] };
 }
 
 // POST /ai/advice: what the app says the message is (kind), 'chat' when it
@@ -93,6 +119,7 @@ function overLimit(c, lim, endpoint) {
   if (kind === 'logging' && n('logging') >= lim.logging) return 'logging';
   if (endpoint === 'meal-scan' && n('scan') >= lim.scan) return 'scan';
   if (kind === 'take' && n('take') >= lim.take) return 'take';
+  if (kind === 'physique' && n('physique') >= lim.physique) return 'physique';
   return null;
 }
 
@@ -101,17 +128,19 @@ function limitReply(hit, c, lim, resetsAt) {
   if (hit === 'chat') {
     return { error: 'daily_limit', code: 'ai_chat_quota', limit: lim.chat, used: Math.min(Number(c?.chat) || 0, lim.chat), resetsAt: resetsAt.toISOString() };
   }
-  const text = { daily: 'Daily AI limit reached', scan: 'Daily meal scan limit reached', logging: 'Daily logging limit reached', take: 'Daily limit reached' }[hit];
-  const code = { daily: 'ai_quota', scan: 'ai_scan_quota', logging: 'ai_log_quota', take: 'ai_take_quota' }[hit];
+  const text = { daily: 'Daily AI limit reached', scan: 'Daily meal scan limit reached', logging: 'Daily logging limit reached', take: 'Daily limit reached', physique: 'Daily physique scan limit reached' }[hit];
+  const code = { daily: 'ai_quota', scan: 'ai_scan_quota', logging: 'ai_log_quota', take: 'ai_take_quota', physique: 'ai_physique_quota' }[hit];
   return { error: text, code, resetsAt: resetsAt.toISOString() };
 }
 
-// guests: counts { install (ever), ip (24 h), everyone (24 h) } before this call
-function guestOverLimit(c, lim) {
+// guests: counts { install (ever), ip (24 h), everyone (24 h) } before this
+// call, of the one kind (chats, or physique scans: guestCaps)
+function guestOverLimit(c, lim, kind = 'chat') {
   const n = (k) => Number(c?.[k]) || 0;
-  if (n('install') >= lim.guest) return 'install';
-  if (n('ip') >= lim.guestIp) return 'ip';
-  if (n('everyone') >= lim.guestAll) return 'busy';
+  const cap = guestCaps(kind, lim);
+  if (n('install') >= cap.install) return 'install';
+  if (n('ip') >= cap.ip) return 'ip';
+  if (n('everyone') >= cap.all) return 'busy';
   return null;
 }
 
@@ -130,12 +159,16 @@ const ipHash = (ip) => crypto.createHash('sha256').update(`${process.env.IP_HASH
 // request (POST /ai/advice: adviceEndpoint).
 // res.locals.aiUsage: the chat count after this call (the app shows it);
 // res.locals.aiRefund(): takes the call back off when the AI failed.
+// res.locals.aiRetry(): a guest's physique photo couldn't be read (no one in
+// it, blurry): the install may try another, the IP and everyone caps still
+// count it. Nothing for an account (its daily cap is the retry).
 function aiQuota(pool, endpoint, { env = process.env, now = () => Date.now() } = {}) {
   return async function quota(req, res, next) {
     const ep = typeof endpoint === 'function' ? endpoint(req) : endpoint;
     const lim = limits(env);
     res.locals = res.locals || {};
     res.locals.aiRefund = () => {};
+    res.locals.aiRetry = () => {};
     const uid = req.user?.id;
     if (!uid) {
       if (req.guest) return guestQuota(pool, ep, lim, req, res, next);
@@ -149,7 +182,8 @@ function aiQuota(pool, endpoint, { env = process.env, now = () => Date.now() } =
                 COUNT(*) FILTER (WHERE endpoint = ANY($3) AND logged_at >= $2)::int AS chat,
                 COUNT(*) FILTER (WHERE endpoint = ANY($4) AND logged_at >= $2)::int AS logging,
                 COUNT(*) FILTER (WHERE endpoint = 'meal-scan' AND logged_at >= $2)::int AS scan,
-                COUNT(*) FILTER (WHERE endpoint = 'meal-take' AND logged_at >= $2)::int AS take
+                COUNT(*) FILTER (WHERE endpoint = 'meal-take' AND logged_at >= $2)::int AS take,
+                COUNT(*) FILTER (WHERE endpoint = 'physique' AND logged_at >= $2)::int AS physique
            FROM ai_log WHERE user_id = $1 AND logged_at > LEAST($2::timestamptz, NOW() - INTERVAL '24 hours')`,
         [uid, start.toISOString(), CHAT_ENDPOINTS, LOGGING_ENDPOINTS],
       );
@@ -176,22 +210,25 @@ function aiQuota(pool, endpoint, { env = process.env, now = () => Date.now() } =
 }
 
 async function guestQuota(pool, ep, lim, req, res, next) {
-  const signIn = (used) => res.status(401).json({ error: 'sign_in_required', limit: lim.guest, used: Math.min(used, lim.guest) });
-  // a guest only chats; the rest of the AI is for accounts
-  if (kindOf(ep) !== 'chat') return signIn(lim.guest);
+  // a guest chats with the coach and may scan their physique once; the rest
+  // of the AI is for accounts
+  const kind = kindOf(ep);
+  const cap = guestCaps(kind, lim);
+  const signIn = (used) => res.status(401).json({ error: 'sign_in_required', limit: cap.install, used: Math.min(used, cap.install) });
+  if (kind !== 'chat' && kind !== 'physique') return signIn(cap.install);
   const { installId } = req.guest;
   const ip = ipHash(req.ip);
   try {
     const { rows } = await pool.query(
-      `SELECT COUNT(*) FILTER (WHERE install_id = $1)::int AS install,
+      `SELECT COUNT(*) FILTER (WHERE install_id = $1 AND endpoint = ANY($3))::int AS install,
               COUNT(*) FILTER (WHERE ip_hash = $2 AND logged_at > NOW() - INTERVAL '24 hours')::int AS ip,
               COUNT(*) FILTER (WHERE logged_at > NOW() - INTERVAL '24 hours')::int AS everyone
-         FROM ai_guest_log WHERE install_id = $1 OR logged_at > NOW() - INTERVAL '24 hours'`,
-      [installId, ip],
+         FROM ai_guest_log WHERE endpoint = ANY($4) AND (install_id = $1 OR logged_at > NOW() - INTERVAL '24 hours')`,
+      [installId, ip, cap.installRows, cap.windowRows],
     );
     const c = rows[0] || {};
-    if (guestOverLimit(c, lim)) return signIn(Number(c.install) || 0);
-    const ins = await pool.query('INSERT INTO ai_guest_log (install_id, ip_hash) VALUES ($1, $2) RETURNING id', [installId, ip]);
+    if (guestOverLimit(c, lim, kind)) return signIn(Number(c.install) || 0);
+    const ins = await pool.query('INSERT INTO ai_guest_log (install_id, ip_hash, endpoint) VALUES ($1, $2, $3) RETURNING id', [installId, ip, kind]);
     // now and then, drop guest records older than the 90 days the privacy policy promises
     if (Math.random() < PRUNE_CHANCE) {
       pool.query(`DELETE FROM ai_guest_log WHERE logged_at < NOW() - INTERVAL '90 days'`)
@@ -199,8 +236,11 @@ async function guestQuota(pool, ep, lim, req, res, next) {
     }
     const id = ins?.rows?.[0]?.id;
     if (id) res.locals.aiRefund = () => pool.query('DELETE FROM ai_guest_log WHERE id = $1', [id]).catch(() => {});
-    const used = Math.min((Number(c.install) || 0) + 1, lim.guest);
-    res.locals.aiUsage = { used, limit: lim.guest, left: lim.guest - used, guest: true };
+    if (id && kind === 'physique') {
+      res.locals.aiRetry = () => pool.query(`UPDATE ai_guest_log SET endpoint = 'physique-retry' WHERE id = $1`, [id]).catch(() => {});
+    }
+    const used = Math.min((Number(c.install) || 0) + 1, cap.install);
+    res.locals.aiUsage = { used, limit: cap.install, left: cap.install - used, guest: true };
     if (Math.random() < PRUNE_CHANCE) {
       pool.query(`DELETE FROM ai_guest_log WHERE logged_at < NOW() - INTERVAL '400 days'`)
         .catch((e) => console.error('ai_guest_log prune failed:', e.message));
@@ -227,6 +267,6 @@ function optionalAuth(auth) {
 }
 
 module.exports = {
-  aiQuota, optionalAuth, installIdOf, adviceEndpoint, limits, overLimit, guestOverLimit, limitReply, dayWindow, tzOffset, kindOf,
+  aiQuota, optionalAuth, installIdOf, adviceEndpoint, limits, overLimit, guestOverLimit, guestCaps, limitReply, dayWindow, tzOffset, kindOf,
   CHAT_ENDPOINTS, LOGGING_ENDPOINTS,
 };

@@ -60,6 +60,10 @@ const MIGRATIONS = [
   )`,
   `CREATE INDEX IF NOT EXISTS ai_guest_log_install ON ai_guest_log (install_id)`,
   `CREATE INDEX IF NOT EXISTS ai_guest_log_time ON ai_guest_log (logged_at)`,
+  // what a guest's call was: 'chat', or 'physique' (one free physique scan,
+  // POST /ai/physique; 'physique-retry' a photo that couldn't be read), so
+  // they're counted apart; rows from before are chats
+  `ALTER TABLE ai_guest_log ADD COLUMN IF NOT EXISTS endpoint TEXT NOT NULL DEFAULT 'chat'`,
   // challenges: 7-day points races between two players (src/routes/challenges.js);
   // an account's challenges go with it
   `CREATE TABLE IF NOT EXISTS challenges (
