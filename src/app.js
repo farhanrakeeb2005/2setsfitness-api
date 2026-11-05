@@ -97,6 +97,8 @@ app.use('/points',           pointsRoutes);
 app.use('/account',          accountRoutes);
 app.use('/email',            emailRoutes);
 app.use('/contact',          contactRoutes);
+// the app's feedback prompt (signed in; routes/feedback.js)
+app.use('/feedback',         require('./routes/feedback').defaultFeedbackRouter());
 app.use('/news',             newsRoutes);
 // the coach's natural English voice (routes/tts.js; needs TTS_URL)
 app.use('/tts',              require('./routes/tts').defaultTtsRouter());

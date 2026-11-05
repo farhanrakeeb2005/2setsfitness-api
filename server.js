@@ -115,6 +115,20 @@ const MIGRATIONS = [
   )`,
   // (the privacy policy promises contact messages go within 12 months; this runs at every start)
   `DELETE FROM contact_messages WHERE created_at < now() - interval '12 months'`,
+  // the app's "Enjoying 2SetsFitness?" prompt (src/routes/feedback.js); goes with the account.
+  // can_quote: the user ticked "you can show this on our website with this name"
+  `CREATE TABLE IF NOT EXISTS app_feedback (
+    id BIGSERIAL PRIMARY KEY,
+    uid TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('like', 'improve')),
+    text TEXT NOT NULL,
+    name TEXT,
+    can_quote BOOLEAN NOT NULL DEFAULT false,
+    app_version TEXT,
+    lang TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS app_feedback_uid ON app_feedback (uid)`,
   // who has blocked whom (src/routes/blocks.js: challenges and friend requests)
   `CREATE TABLE IF NOT EXISTS blocks (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
