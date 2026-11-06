@@ -26,6 +26,7 @@ const { aiQuota, optionalAuth, adviceEndpoint } = require('../lib/aiQuota');
 const { containerVolumeHandler } = require('../lib/containerVolume');
 const { physiqueHandler } = require('../lib/physique');
 const { notesImportPrompt, cleanNotesReply, cleanNote } = require('../lib/notesImport');
+const { labelScanPrompt, cleanLabelReply } = require('../lib/labelScan');
 
 // per-user daily caps on every AI call (src/lib/aiQuota.js), after the token check
 const quota = (endpoint) => aiQuota(pool, endpoint);
@@ -281,6 +282,43 @@ If there is no food in the photo, return {"items":[],"total":{"calories":0,"prot
   } catch (err) {
     console.error('Meal scan failed:', err.message);
     res.status(500).json({ error: 'Meal scan failed' });
+  }
+});
+
+// ─── POST /ai/label-scan ──────────────────────────────────────────────────────
+// Body: { imageBase64, mimeType?, lang?, barcode? }
+// A packaged food's nutrition label (or front of pack) read from a photo, for
+// the barcode scanner when Open Food Facts doesn't have the barcode or has no
+// calories for it: { name, brand, per100: { unit, kcal, protein, carbs, fat,
+// fibre, sugar, salt }, serving: { label, amount, kcal, protein, carbs, fat,
+// fibre } | null, packSize, confidence }, or 422 { error: 'no_label' }.
+// Counted as a meal scan (same quota bucket: it can't dodge the scan cap).
+// src/lib/labelScan.js has the prompt and the checks on the answer.
+router.post('/label-scan', auth, quota('meal-scan'), async (req, res) => {
+  const { imageBase64, mimeType = 'image/jpeg', barcode } = req.body || {};
+  if (!imageBase64 || typeof imageBase64 !== 'string') return res.status(400).json({ error: 'No image provided' });
+  if (imageBase64.length > 1_400_000) return res.status(413).json({ error: 'Image too large' });
+  if (!MEAL_TYPES.has(mimeType)) return res.status(400).json({ error: 'Unsupported image type' });
+
+  try {
+    const msg = await anthropic.messages.create(request({
+      model:     models().scan,
+      // reading printed numbers, not judging portions
+      effort:    'low',
+      maxTokens: 600,
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mimeType, data: imageBase64 } },
+        { type: 'text', text: labelScanPrompt(barcode) },
+      ],
+    }));
+    let raw;
+    try { raw = parseJSON(replyText(msg)); } catch { raw = null; }
+    const out = cleanLabelReply(raw);
+    if (!out.ok) return res.status(422).json({ error: out.error });
+    res.json(out.product);
+  } catch (err) {
+    console.error('Label scan failed:', err.message);
+    res.status(500).json({ error: 'Label scan failed' });
   }
 });
 
